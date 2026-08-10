@@ -40,7 +40,7 @@ GET    /x/tasks
 PATCH  /x/tasks/bulk                           {"tasks":["TASK-4","TASK-7"], "set":{...}, "refs":{"TASK-4":"19.1"}}
 DELETE /x/tasks/bulk                           {"tasks":["TASK-4","TASK-7"]}
 GET    /x/tasks/:id
-POST   /x/tasks                                {"title","description?","assignee?","status?","priority?","estimateMinutes?","sprintId?","attachmentIds?","refs?"}
+POST   /x/tasks                                {"title","description?","assignee?","status?","priority?","estimateMinutes?","sprintId?","attachmentIds?","resourceIds?","refs?"}
 PATCH  /x/tasks/:id
 DELETE /x/tasks/:id
 POST   /x/tasks/:id/restore
@@ -136,7 +136,7 @@ DELETE /x/notes/:id
 
 ```
 GET    /x/resources
-POST   /x/resources                            {"name"?, "url"?, "description"?}
+POST   /x/resources                            {"name"?,"url"?,"description"?,"secrets"?,"viewers"?}
 PATCH  /x/resources/:id
 ```
 

@@ -351,7 +351,50 @@ ignoring the screenshot of it is not.
 
 ---
 
-## 10. What not to do
+## 10. Resources and secrets
+
+A resource is a link plus, optionally, secrets under it: a staging URL and the
+key that opens it, a database and its connection string.
+
+**Link them to the task, never paste them into it.** A password written into a
+description or a comment is readable by everyone who can see the task, stays in
+the history, and cannot be taken back. A linked resource keeps deciding for
+itself who may open it.
+
+```bash
+# 1. create the resource, name who needs its secrets
+curl -s -X POST "https://api.chatick.com/x/resources?project=$P" \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"Staging DB","url":"https://...","secrets":[{"label":"Password","value":"..."}],
+       "viewers":["<userId>"]}'
+
+# 2. attach it to the task — same request that creates or edits the task
+curl -s -X PATCH "https://api.chatick.com/x/tasks/TASK-81?project=$P" \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"resourceIds":["<resourceId>"]}'
+```
+
+**A resource you create is shared with nobody but you.** This is the opposite
+of the app, where a person sees the team pre-filled and removes whoever should
+not be there. You are sending the request blind, so the default is the safe
+one — and it means the human you made it for **cannot open it** until you name
+them in `"viewers"`. Ids come from `GET /x/members`.
+
+**Say who you gave it to.** In the closing comment, name them: the task does
+not show it, and "готово, креды в ресурсах" reads as "everyone can see them".
+
+**Only the author changes the audience.** If someone else needs access to a
+resource you did not create, say so and let its author do it.
+
+**Do not go hunting for secrets to save.** Write down what the human handed you
+for that purpose. Never values you happened to read in a `.env`, a log, a
+config or an earlier message — the fact that you saw a password is not a reason
+to store it, and "заодно сохранил в ресурсы" is a decision that was not yours
+to make.
+
+---
+
+## 11. What not to do
 
 - **Never delete a project.** Not through the bridge, not by asking. Deletion
   takes everything with it and cannot be undone; it is a human's decision made
@@ -371,7 +414,7 @@ ignoring the screenshot of it is not.
 
 ---
 
-## 11. The shape of a working session
+## 12. The shape of a working session
 
 ```bash
 # what concerns this person, across every project
@@ -392,7 +435,10 @@ Then, for a piece of work:
 5. **`in_progress`** — before the first edit, not after the last.
 6. **Work**, ticking checklist items as they are genuinely done.
 7. **Extra findings** → their own tasks, with estimates (§0).
-8. **Closing comment** — what you did, what you verified with, what is open.
-9. **`done` or `review`** — and never without that comment.
+8. **Access the work needs** → a resource, linked to the task, shared with the
+   people who need it (§10).
+9. **Closing comment** — what you did, what you verified with, what is open,
+   and who you granted access to.
+10. **`done` or `review`** — and never without that comment.
 
 When you are done for good: `POST /x/disconnect` closes the tunnel.
