@@ -68,6 +68,14 @@ field semantics and this person's permissions, still read the server's guide.
 
 ## 2. Connect — device flow, no secrets in chat
 
+**If the `chatick` MCP server is available, use `chatick_connect` instead of
+this section.** Where the desktop app is running it raises an approval window,
+so the human presses a button rather than copying a code; where it is not, it
+runs exactly the flow below. Everything after connecting is unchanged, and the
+rules in this document still apply.
+
+The steps below are for working without that server — by hand, over curl.
+
 ```bash
 # 1. ask for a code
 curl -s -X POST https://api.chatick.com/x/device \
@@ -88,6 +96,11 @@ curl -s -X POST https://api.chatick.com/x/device/poll \
 
 Keep the token **in memory for this session only**. Never write it to a file,
 never echo it back, never commit it.
+
+(The MCP server does keep a token on disk, in `~/.chatick/mcp-token.json`. That
+is its own deliberate trade — a file the human owns, so they are not asked for a
+code every session. It is not licence to write tokens anywhere yourself: when
+you are running the flow above by hand, the token stays in memory.)
 
 **Check the clock before multi-step work.** Every response carries
 `x-tunnel-expires-in`. The tunnel dies after 24h, 12h idle, or when closed. A
