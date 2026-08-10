@@ -386,6 +386,27 @@ not show it, and "готово, креды в ресурсах" reads as "everyo
 **Only the author changes the audience.** If someone else needs access to a
 resource you did not create, say so and let its author do it.
 
+**Check the person can see resources at all.** Two gates guard a secret, and
+the first is older than your list. `GET /x/members` reports each person's
+level:
+
+| `resources` | What it means for a viewer |
+| --- | --- |
+| `none` | never reaches the card — sharing changes **nothing** |
+| `read` | can open the resource and reveal what is shared with them |
+| `write` | can also create and edit resources |
+
+Listing someone with `none` is not refused, it is simply useless: you would
+report access as granted and they would still see nothing. If they need it and
+you own or administer the project, raise it first and say that you did:
+
+```bash
+curl -s -X PATCH "https://api.chatick.com/x/members/<userId>?project=$P"   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'   -d '{"permissions":{"resources":"read"}}'
+```
+
+If you do not manage the team, do not quietly skip them — name who is missing
+access and who can grant it.
+
 **Do not go hunting for secrets to save.** Write down what the human handed you
 for that purpose. Never values you happened to read in a `.env`, a log, a
 config or an earlier message — the fact that you saw a password is not a reason
