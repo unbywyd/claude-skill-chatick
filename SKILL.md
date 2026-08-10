@@ -59,7 +59,7 @@ endpoint list you remember, can be.
 Read it after connecting, before your first real call. When the two disagree,
 the server wins.
 
-**Offline map:** [`reference/endpoints.md`](reference/endpoints.md) lists all 84
+**Offline map:** [`reference/endpoints.md`](reference/endpoints.md) lists all 85
 endpoints with their request bodies, generated from the bridge source. Use it to
 answer "is there an endpoint for this" without a network call — but for exact
 field semantics and this person's permissions, still read the server's guide.
@@ -177,6 +177,12 @@ curl -s -X POST "https://api.chatick.com/x/tasks?project=$P" \
 The reply carries the **number** (`TASK-81`). Use numbers everywhere a task
 appears in a path — that is what the human says out loud, and it survives you
 losing whatever id map you kept.
+
+**Give the human the `url` from the reply — never a link you assembled.** Every
+task in a response carries a ready one. The address format has changed once
+already, and a guessed `/#/p/<id>` looks plausible while opening a blank
+screen: the route does not exist, the router renders nothing, and the person
+concludes the product is broken.
 
 ---
 
@@ -415,7 +421,46 @@ to make.
 
 ---
 
-## 11. What not to do
+## 11. Documents — check what you wrote actually landed
+
+Long-lived project text lives in documents: specs, decisions, notes that
+outgrew a comment.
+
+```bash
+# create or replace
+curl -s -X PATCH "https://api.chatick.com/x/documents/<id>?project=$P"   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'   -d '{"content":"<p>...</p>"}'
+
+# add to the end — safe for long documents
+curl -s -X POST "https://api.chatick.com/x/documents/<id>/append?project=$P"   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'   -d '{"content":"<p>...</p>"}'
+```
+
+**Every write answers with `totalChars` — the length AFTER it. Compare it with
+what you sent.** A reply of `{id, title}` alone looks like success whatever
+happened; reporting a saved document that still holds the old text is worse
+than reporting a failure, because nobody goes looking.
+
+**Append rather than replace when adding.** PATCH rewrites the whole document:
+send a short body by accident and the rest is gone. Versions exist and a human
+can restore, but the mistake is silent until someone opens the page.
+
+---
+
+## 12. When a call is refused, read what it actually says
+
+A rejected request usually names its own cause. Two that mislead if you skim:
+
+**`Invalid JSON`** means the body never parsed — the field it complains about
+was never there. Look at the reply's `hint`: it shows the fragment around the
+break. A stray backslash is the usual culprit; in JSON a literal `\` must be
+written `\`, and text in Hebrew or Russian hits this often.
+
+**`Nothing to update`** means every field you sent was ignored, not that the
+task is unchanged. Check the field names against `GET /x/guide` — a typo is
+dropped silently, not guessed.
+
+---
+
+## 13. What not to do
 
 - **Never delete a project.** Not through the bridge, not by asking. Deletion
   takes everything with it and cannot be undone; it is a human's decision made
@@ -435,7 +480,7 @@ to make.
 
 ---
 
-## 12. The shape of a working session
+## 14. The shape of a working session
 
 ```bash
 # what concerns this person, across every project

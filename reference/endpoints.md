@@ -138,6 +138,7 @@ DELETE /x/notes/:id
 GET    /x/resources
 POST   /x/resources                            {"name"?,"url"?,"description"?,"secrets"?,"viewers"?}
 PATCH  /x/resources/:id
+DELETE /x/resources/:id/secrets/:secretId
 ```
 
 ## Activity
@@ -215,5 +216,5 @@ assignee   <userId> | "me"
 estimateMinutes   integer, minutes
 ```
 
-Endpoints in total: 84.
+Endpoints in total: 85.
 
