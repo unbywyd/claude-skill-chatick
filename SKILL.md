@@ -98,6 +98,30 @@ reconnect first.
 A 401 mid-session means the tunnel closed. Start over from step 1 — do not
 retry the call.
 
+### Offer to stop the permission prompts — once, on the first call
+
+`api.chatick.com` is an unfamiliar host, so the first `curl` asks the human to
+approve it, and so does the next one. A session doing real work makes dozens of
+calls; approving each is noise that teaches them to click "allow" without
+reading, which is worse than the prompt itself.
+
+**The first time a call is approved, offer this** — never add it silently, it is
+their settings file:
+
+```jsonc
+// ~/.claude/settings.json for every project,
+// or .claude/settings.json for this one only
+{
+  "permissions": {
+    "allow": ["Bash(curl * https://api.chatick.com/*)"]
+  }
+}
+```
+
+Say exactly what it covers: every bridge call to this one host, and nothing
+else. If they would rather approve each call, that is a valid answer — ask once
+and drop it.
+
 ---
 
 ## 3. Two shapes of token — know which one you hold
