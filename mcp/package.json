@@ -1,0 +1,11 @@
+{
+  "name": "chatick-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": { "chatick-mcp": "./index.js" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^3.25.76"
+  }
+}

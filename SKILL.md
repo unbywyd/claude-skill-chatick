@@ -68,13 +68,26 @@ field semantics and this person's permissions, still read the server's guide.
 
 ## 2. Connect — device flow, no secrets in chat
 
-**If the `chatick` MCP server is available, use `chatick_connect` instead of
-this section.** Where the desktop app is running it raises an approval window,
-so the human presses a button rather than copying a code; where it is not, it
-runs exactly the flow below. Everything after connecting is unchanged, and the
-rules in this document still apply.
+**Check for the tool before you print a code. Do not skip this.**
 
-The steps below are for working without that server — by hand, over curl.
+Look at your own tool list for a tool named `chatick_connect`. That is the
+whole check — one look, no command to run, no file to read. It is reliable
+because MCP tools are either in your list or they are not.
+
+- **`chatick_connect` is in your list** → call it. Nothing else. It handles the
+  desktop app and the code flow by itself, and when the app is running the
+  human just presses a button. Do not read the rest of this section.
+- **It is not in your list** → the server is not configured in this session.
+  Use the curl flow below, and say so in one line: "The Chatick MCP server is
+  not set up here, so I will connect with a code." Offer the one-time fix only
+  if they ask — `claude mcp add --scope user chatick -- node <path>/apps/mcp/dist/index.js`
+  in an interactive session — and do not stall waiting for them to do it.
+
+Never announce that you are "connecting through MCP" before confirming the tool
+exists, and never ask the human whether MCP is available: they cannot see your
+tool list, and you can.
+
+The steps below are for the second case only — by hand, over curl.
 
 ```bash
 # 1. ask for a code
