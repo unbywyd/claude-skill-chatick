@@ -87,6 +87,20 @@ Never announce that you are "connecting through MCP" before confirming the tool
 exists, and never ask the human whether MCP is available: they cannot see your
 tool list, and you can.
 
+**If they ask you to update this skill**, it is a git clone — run it for them
+from the skill directory (`~/.claude/skills/chatick` unless they installed it
+elsewhere):
+
+```bash
+cd ~/.claude/skills/chatick && git pull
+node scripts/install.mjs   # only if mcp/ changed; harmless otherwise
+```
+
+Then tell them to restart Claude Code, and say why: you are running the copy
+loaded at startup, so until they restart, the files on disk are new and your
+behaviour is old. Do not claim the update took effect in this session — it did
+not, and you cannot verify it from inside.
+
 The steps below are for the second case only — by hand, over curl.
 
 ```bash
