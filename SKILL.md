@@ -613,6 +613,29 @@ guessing a stage name — the ladders differ on purpose:
 iOS has an Apple review step and Android does not, so a single shared ladder
 would make "1.4 is live" mean different things on two platforms.
 
+### Asking someone for a build
+
+This is the common case, and it has its own call. A manager does not "create a
+version" — they **ask a person to build one**:
+
+```bash
+curl -s -X POST "https://api.chatick.com/x/releases/request?project=$P"   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'   -d '{"version":"1.4.0","buildType":"ios","assignee":"<userId>",
+       "comment":"Production build for the store","buildProfile":"production"}'
+```
+
+One call creates the **task** (with the assignee, who gets notified), the
+**version**, and the link between them. Doing it as three separate calls risks
+breaking in the middle and leaving a task with no version — a half-state
+somebody then has to clean up by hand.
+
+`POST /x/releases` without `/request` is for the other case: registering
+something **already built**, when there is nobody to ask.
+
+`buildProfile` is what it was built **with** — `development | preview |
+production` (`eas build --profile`). Not the same as the stage: the stage says
+where the build got to, the profile says how it was made. The same production
+build passes through TestFlight and then the store.
+
 **Moving a stage requires a comment, and this is the point of the feature:**
 
 ```bash
@@ -623,6 +646,10 @@ curl -s -X POST "https://api.chatick.com/x/releases/<id>/stage?project=$P" \
 
 "Why has 1.4 been in review for a week" has no answer if every transition
 silently overwrites the last. Write what happened, not "moved".
+
+Moving a stage notifies the person who **created** the version and whoever is
+assigned to the linked tasks — not the whole project, and never the person who
+made the change.
 
 **There is no delete.** A version is a fact — it was built and it went
 somewhere. Erasing it erases the answer to "what was in production that

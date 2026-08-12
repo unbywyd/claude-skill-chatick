@@ -44,9 +44,14 @@ my answer", and the second gets lost in the first.
 ```
 GET    /x/releases                             list + "live" + stage ladders
 GET    /x/releases/:id                         one version, its history and tasks
-POST   /x/releases                             {"version","buildType","status?","referenceUrl?","notes?","comment?"}
+POST   /x/releases/request                     {"version","buildType","assignee?","comment?","buildProfile?","estimateMinutes?"}
+POST   /x/releases                             {"version","buildType","status?","referenceUrl?","notes?","comment?","buildProfile?"}
 POST   /x/releases/:id/stage                   {"status","comment"}  comment REQUIRED
 ```
+
+/x/releases/request is the usual one: it creates the task (with an assignee,
+who is notified), the version and the link in a single call. Plain POST
+/x/releases registers something already built.
 
 Off by default: 404 until a project owner enables them. No DELETE — a version
 is a fact, close a wrong one with a stage change. Tasks link to versions from
