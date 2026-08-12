@@ -538,12 +538,31 @@ dropped silently, not guessed.
 ## 14. The shape of a working session
 
 ```bash
-# what concerns this person, across every project
+# where THIS PERSON was asked something — check this first
+curl -s https://api.chatick.com/x/mentions -H "authorization: Bearer $TOKEN"
+
+# everything else waiting for them, across every project
 curl -s https://api.chatick.com/x/inbox -H "authorization: Bearer $TOKEN"
 ```
 
-`GET /x/inbox` is the answer to "what is on my plate" — it spans all projects,
-item carries `whatIsAsked`, written for you. Start there.
+**Start with `GET /x/mentions`.** It returns only what is addressed to the
+person directly — mentions in comments, chat and notes, plus tasks assigned to
+them. It is a short list, and it is the one that has someone waiting on the
+other end.
+
+`GET /x/inbox` is the wider answer to "what is on my plate": it spans all
+projects and every item carries `whatIsAsked`, written for you. But it mixes
+weights — "someone closed their own task" sits next to "a person asked me a
+question", and the second drowns in the first. That has already cost real
+time: a question left in a comment took three separate calls to find, because
+the general feed did not surface it.
+
+Both accept `?since=<ISO>` — ask for what is new since a moment you already
+saw, instead of pulling the last thirty and eyeballing them.
+
+When picking up work, `GET /x/tasks?fields=brief` also tells you where a
+conversation is waiting: `unansweredMention: true` means this person was
+mentioned in the comments and has not written since.
 
 Then, for a piece of work:
 
