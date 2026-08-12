@@ -39,6 +39,19 @@ chat and notes, plus tasks assigned to them. Check it before `/x/inbox` — the
 wider feed mixes "someone closed their own task" with "a person is waiting for
 my answer", and the second gets lost in the first.
 
+## Releases
+
+```
+GET    /x/releases                             list + "live" + stage ladders
+GET    /x/releases/:id                         one version, its history and tasks
+POST   /x/releases                             {"version","buildType","status?","referenceUrl?","notes?","comment?"}
+POST   /x/releases/:id/stage                   {"status","comment"}  comment REQUIRED
+```
+
+Off by default: 404 until a project owner enables them. No DELETE — a version
+is a fact, close a wrong one with a stage change. Tasks link to versions from
+the task side: `releaseIds` in POST/PATCH `/x/tasks`.
+
 ## Tasks
 
 ```

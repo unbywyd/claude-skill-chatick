@@ -582,3 +582,74 @@ Then, for a piece of work:
 10. **`done` or `review`** — and never without that comment.
 
 When you are done for good: `POST /x/disconnect` closes the tunnel.
+
+---
+
+## 15. Versions — "which one is in production"
+
+Teams ask this out loud, in WhatsApp, several times a week: *what did we ship,
+where is it now, is 1.4 still stuck in Apple review?* The answer belongs on a
+page, not in someone's memory.
+
+```bash
+curl -s "https://api.chatick.com/x/releases?project=$P" -H "authorization: Bearer $TOKEN"
+```
+
+The reply carries **`live`** — what actually reached people, per build type.
+That is the answer to "which version is in production"; do not compute it
+yourself from the list.
+
+It also carries **`buildTypes`**, every stage ladder. Read it instead of
+guessing a stage name — the ladders differ on purpose:
+
+| Build type | Ladder |
+| --- | --- |
+| `ios` | building → testflight → in_review → released |
+| `android` | building → internal → released |
+| `web`, `backend` | building → staging → released |
+| `desktop` | building → beta → released |
+| `other` | building → released |
+
+iOS has an Apple review step and Android does not, so a single shared ladder
+would make "1.4 is live" mean different things on two platforms.
+
+**Moving a stage requires a comment, and this is the point of the feature:**
+
+```bash
+curl -s -X POST "https://api.chatick.com/x/releases/<id>/stage?project=$P" \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"status":"in_review","comment":"Submitted, waiting on Apple"}'
+```
+
+"Why has 1.4 been in review for a week" has no answer if every transition
+silently overwrites the last. Write what happened, not "moved".
+
+**There is no delete.** A version is a fact — it was built and it went
+somewhere. Erasing it erases the answer to "what was in production that
+Tuesday". Close a wrong one by moving its stage and saying so in the comment.
+
+**Releases are off by default.** If the project has not enabled them, every
+endpoint returns 404 with an explanation. That is a setting, not a bug — tell
+the human that a project owner or admin turns it on in project settings, and
+do not go looking for a workaround.
+
+### Linking a task to a version
+
+The link is made from the **task** side, like resources:
+
+```bash
+curl -s -X PATCH "https://api.chatick.com/x/tasks/TASK-81?project=$P" \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"releaseIds":["<releaseId>"]}'
+```
+
+"Ship 1.4 to Google Play" is work — it has an assignee and a deadline. A
+version has neither; it just exists and moves. So the task points at the
+version, not the other way round.
+
+It shows in both directions: `GET /x/tasks/TASK-81` returns `releases` with
+each version's **current stage**, so "what is this task shipping in" needs no
+second call, and `GET /x/releases/<id>` returns the tasks attached to it.
+
+Both sides are optional. A version with no task is normal — you built and
+uploaded it in two minutes. A task with no version is normal too.
