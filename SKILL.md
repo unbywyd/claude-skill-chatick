@@ -307,6 +307,9 @@ somebody opens in three weeks asking "why was this done this way".
 - **Mention with `@[Name](<userId>)`** — only that exact markup notifies. A
   plain `@name` is just text. The author, the assignee and the person you
   replied to are notified anyway; do not mention them for that alone.
+  The same markup works in a task **description** and notifies the same way, so
+  you can pull someone in as you create the task instead of commenting right
+  after. Ids come from `GET /x/members`.
 - **Attach evidence.** `POST /x/files` first, then `"attachmentIds"` (up to
   10). A screenshot of the failure often IS the answer.
 
