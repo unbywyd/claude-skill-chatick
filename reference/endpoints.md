@@ -29,9 +29,15 @@ POST   /x/disconnect
 ## Inbox
 
 ```
-GET    /x/inbox
+GET    /x/mentions                             ?unread=0 &since=<ISO>
+GET    /x/inbox                                ?unread=0 &since=<ISO>
 POST   /x/inbox/read                           {"ids":["..."]} or {"all":true}
 ```
+
+`/x/mentions` is only what was addressed to this person: mentions in comments,
+chat and notes, plus tasks assigned to them. Check it before `/x/inbox` — the
+wider feed mixes "someone closed their own task" with "a person is waiting for
+my answer", and the second gets lost in the first.
 
 ## Tasks
 
