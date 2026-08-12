@@ -218,11 +218,23 @@ The reply carries the **number** (`TASK-81`). Use numbers everywhere a task
 appears in a path — that is what the human says out loud, and it survives you
 losing whatever id map you kept.
 
-**Give the human the `url` from the reply — never a link you assembled.** Every
-task in a response carries a ready one. The address format has changed once
+**Give the human a link from the reply — never one you assembled.** Every task
+in a response carries a ready `url`. The address format has changed once
 already, and a guessed `/#/p/<id>` looks plausible while opening a blank
 screen: the route does not exist, the router renders nothing, and the person
 concludes the product is broken.
+
+Replies about **one** task (`GET`/`POST`/`PATCH` of a single task) also carry
+`shortUrl` — `chatick.com/t-AbC12`. **Prefer it when writing to a person.**
+`url` is ninety characters with two ids and a `#`: it wraps across lines in
+chat, and because it contains no spaces it is one unbreakable word — it
+stretched notification cards to eight lines and broke the layout of the feed.
+Both open the same task, and neither grants access: rights are checked on
+arrival, exactly as with the long address.
+
+Lists leave `shortUrl` out — a short link is a row in a table, and fifty of
+them per listing would be written for nothing. Fetch the single task when you
+actually need one.
 
 ---
 
