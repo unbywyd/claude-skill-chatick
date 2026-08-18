@@ -19,7 +19,7 @@ import { currentScope, connectViaDesktop, startDeviceFlow, waitForApproval, acce
  *
  * Чего здесь НЕТ намеренно: ручки на каждую из 85 ручек моста. Их описания
  * забили бы контекст раньше, чем началась бы работа. Ядро — задачи,
- * комментарии, чек-листы, время, ресурсы; для редкого есть bridge_request.
+ * комментарии, чек-листы, время, ресурсы; для редкого есть chatick_request.
  */
 const server = new McpServer({ name: 'chatick', version: '0.1.0' });
 /** Ответ инструмента: текст, который читает модель. */
@@ -35,6 +35,21 @@ async function need() {
         throw new Error('Not connected to Chatick. Call chatick_connect first — it takes a few seconds.');
     }
     return scope;
+}
+/**
+ * Область доступа словами — для ответа человеку.
+ *
+ * Раньше здесь было «есть проект или нет», и мастер-туннель назывался
+ * «company-wide»: модель считала, что открыта одна компания, и не искала
+ * проекты в остальных. Разница между «вся компания» и «все компании» для
+ * работы существенная, поэтому она названа прямо.
+ */
+function scopeWords(s) {
+    if (s.kind === 'all')
+        return '(master access: every company and project you are in)';
+    if (s.projectId)
+        return '(one project)';
+    return '(one whole company)';
 }
 /** Ошибку моста показываем как есть: там уже есть и причина, и подсказка. */
 function fail(e) {
@@ -53,13 +68,11 @@ server.registerTool('chatick_connect', {
 }, async () => {
     const existing = await currentScope();
     if (existing) {
-        return text(`Already connected${existing.projectId ? ' (project scope)' : ' (company-wide)'}. ` +
-            'Nothing to do — go ahead with the work.');
+        return text(`Already connected ${scopeWords(existing)}. Nothing to do — go ahead with the work.`);
     }
     const viaApp = await connectViaDesktop();
     if (viaApp) {
-        return text(`Connected through the Chatick desktop app${viaApp.projectId ? ' (project scope)' : ' (company-wide)'}. ` +
-            'No code was needed.');
+        return text(`Connected through the Chatick desktop app ${scopeWords(viaApp)}. No code was needed.`);
     }
     // Приложение не отозвалось — обычный случай, а не поломка.
     const started = await startDeviceFlow();
@@ -82,7 +95,7 @@ server.registerTool('chatick_finish_connect', {
     if (!granted)
         return text('Not approved: the human declined, or the code expired. Start again with chatick_connect.');
     const scope = acceptToken(granted);
-    return text(`Connected as ${granted.user?.name ?? 'the human'}${scope.projectId ? ' (project scope)' : ' (company-wide)'}. ` +
+    return text(`Connected as ${granted.user?.name ?? 'the human'} ${scopeWords(scope)}. ` +
         'The token is saved, so next time no code will be needed.');
 });
 server.registerTool('chatick_disconnect', { title: 'Forget the stored access', description: 'Drops the token from memory. Use when handing the machine over.', inputSchema: {} }, async () => {
@@ -95,7 +108,8 @@ server.registerTool('chatick_mentions', {
     description: 'Only the things addressed to this person directly — mentions in comments, chat and notes, plus tasks assigned ' +
         'to them. CHECK THIS FIRST, before chatick_inbox: "someone closed their own task" and "a person asked me a ' +
         'question and is waiting" carry different weight, and in one shared list the second drowns in the first. ' +
-        'Every item carries a ready url.',
+        'Every item carries a ready url. Once you have handled one, clear it with chatick_inbox_read — anything you ' +
+        'leave here stays on the person as an unread counter for work you already did.',
     inputSchema: {
         unread: z.boolean().optional().describe('Only unanswered ones (default true)'),
         since: z.string().optional().describe('ISO timestamp — only what came after it'),
@@ -113,11 +127,56 @@ server.registerTool('chatick_inbox', {
     description: 'Everything waiting for this person, across every project. Each item carries whatIsAsked — one sentence written ' +
         'for you, and a ready url. Start here for "what is on my plate" rather than listing tasks project by project — ' +
         'but for "did anyone ask ME something" use chatick_mentions, which is a much shorter list. ' +
-        'Pass since to ask only for what arrived after a moment you already saw.',
+        'Pass since to ask only for what arrived after a moment you already saw. ' +
+        'Clear whatever you handle with chatick_inbox_read, or the person is left with a counter for finished work.',
     inputSchema: { since: z.string().optional().describe('ISO timestamp — only what came after it') },
 }, async ({ since }) => {
     try {
         return json(await call(await need(), 'GET', '/inbox', undefined, { since }));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+/**
+ * Вторая половина двух ручек выше.
+ *
+ * Их и добавляли ради «проверь, что там»: агент читает адресованное человеку и
+ * отвечает. Но разобрать и не погасить — значит оставить человеку счётчик за
+ * работу, которая уже сделана. Он видит цифру, которая не убирается ничем, и
+ * идёт спрашивать, не сломалось ли приложение.
+ *
+ * Правило записано и в hint ответа, и в гайде — и всё равно не выполнялось:
+ * поведение задают описания инструментов, а не поле JSON с адресом ручки.
+ * Поэтому здесь отдельный инструмент, вопреки общему правилу файла (см. шапку):
+ * это не восемьдесят пятая редкая ручка, а обязательное продолжение уже
+ * существующей.
+ *
+ * `task` — главный параметр: id задачи у агента уже есть, а id уведомлений о
+ * ней ему пришлось бы добывать отдельным запросом.
+ */
+server.registerTool('chatick_inbox_read', {
+    title: 'Clear what I have handled',
+    description: 'Mark notifications read. ALWAYS call this after handling what chatick_mentions or chatick_inbox returned — ' +
+        'otherwise the person keeps seeing a counter for work that is already done, and cannot tell it apart from ' +
+        'what still needs them. Pass task=<id> to clear everything about one task at once: assigned, mentioned and ' +
+        'commented are separate notifications, and clearing them one by one is work nobody does. ids clears specific ' +
+        'ones, all=true clears everything waiting.',
+    inputSchema: {
+        task: z.string().optional().describe('Task id — clears every notification about that task'),
+        ids: z.array(z.string()).optional().describe('Notification ids from chatick_mentions / chatick_inbox'),
+        all: z.boolean().optional().describe('Clear everything unread'),
+        project: z.string().optional().describe('Required on a company-wide connection'),
+    },
+}, async ({ task, ids, all, project }) => {
+    if (!task && !ids?.length && !all) {
+        return text('Nothing to clear: pass task=<id>, ids=[...] or all=true.');
+    }
+    try {
+        const scope = await need();
+        const body = task ? { entityType: 'task', entityId: task } : all ? { all: true } : { ids };
+        await call({ ...scope, projectId: project ?? scope.projectId }, 'POST', '/inbox/read', body);
+        return text(task ? `Cleared every notification about task ${task}.` : all ? 'Cleared everything.' : `Cleared ${ids.length}.`);
     }
     catch (e) {
         return fail(e);
@@ -147,6 +206,10 @@ server.registerTool('chatick_release_create', {
     inputSchema: {
         project: z.string(),
         version: z.string().min(1).describe('"1.4.0" — as the team calls it'),
+        appName: z
+            .string()
+            .optional()
+            .describe('WHICH app: "Client", "Provider". A project often ships several; buildType does not tell them apart'),
         buildType: z.enum(['ios', 'android', 'web', 'backend', 'desktop', 'other']),
         status: z.string().optional().describe('Stage key; omit to start at the first one'),
         buildProfile: z
@@ -174,6 +237,7 @@ server.registerTool('chatick_release_request', {
     inputSchema: {
         project: z.string(),
         version: z.string().min(1).describe('"1.4.0" — as the team calls it'),
+        appName: z.string().optional().describe('WHICH app: "Client", "Provider"'),
         buildType: z.enum(['ios', 'android', 'web', 'backend', 'desktop', 'other']),
         assignee: z.string().optional().describe('"me" or a user id from chatick_members'),
         comment: z.string().optional().describe('What exactly is needed — goes into the task and the history'),
@@ -183,6 +247,22 @@ server.registerTool('chatick_release_request', {
 }, async ({ project, ...body }) => {
     try {
         return json(await call({ ...(await need()), projectId: project }, 'POST', '/releases/request', body));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_expo_connect', {
+    title: 'Connect Expo (EAS) to a project',
+    description: 'Makes EAS report every build to Chatick by itself: the version appears with links to the artifact and the ' +
+        'build logs, and moves off "building" on its own. Returns a ready `command` — give it to the human to run IN ' +
+        'THE APP FOLDER. Several apps (client, provider) each need it in their own folder; one secret covers all, they ' +
+        'are told apart by build name. Calling it twice is safe: same secret, so it cannot break a configured webhook. ' +
+        'Only the BUILD arrives automatically — TestFlight, review and release are still marked by a human.',
+    inputSchema: { project: z.string() },
+}, async ({ project }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'POST', '/integrations/expo'));
     }
     catch (e) {
         return fail(e);
@@ -276,6 +356,10 @@ server.registerTool('chatick_task_create', {
         description: z.string().optional(),
         assignee: z.string().describe('"me" or a user id from chatick_members'),
         estimateMinutes: z.number().int().positive().describe('Rough is fine; a guess beats nothing'),
+        dueDate: z
+            .string()
+            .optional()
+            .describe('Due date "2026-09-14". Only when the person named one — never invent a deadline'),
         priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
         resourceIds: z.array(z.string()).optional().describe('Resources this task needs — link them, never paste secrets'),
         releaseIds: z.array(z.string()).optional().describe('Versions this task ships in — ids from chatick_releases'),
@@ -298,6 +382,10 @@ server.registerTool('chatick_task_update', {
         status: z.enum(['todo', 'in_progress', 'review', 'done']).optional(),
         assignee: z.string().optional(),
         estimateMinutes: z.number().int().positive().optional(),
+        dueDate: z
+            .string()
+            .optional()
+            .describe('Due date "2026-09-14". Only when the person named one — never invent a deadline'),
         priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
         resourceIds: z.array(z.string()).optional(),
         releaseIds: z.array(z.string()).optional().describe('Versions this task ships in — ids from chatick_releases'),
@@ -458,6 +546,40 @@ server.registerTool('chatick_request', {
     try {
         const scope = await need();
         return json(await call({ ...scope, projectId: project ?? scope.projectId }, method, path, body));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_report', {
+    title: 'Tell the Chatick team what got in your way',
+    description: 'Report a gap in Chatick itself: an endpoint that does not exist, behaviour that contradicts the guide, a feature ' +
+        'the person asked for and does not have, or documentation that is wrong. Send it when you actually hit the wall ' +
+        'while doing something — not as a wishlist. It is read by a human and is NOT implemented automatically, so never ' +
+        'promise the person a fix or a date. This is about Chatick, never about the person own project or their team.',
+    inputSchema: {
+        kind: z
+            .enum(['missing', 'bug', 'request', 'docs'])
+            .describe('missing — no endpoint for it; bug — behaved unlike the guide; request — person asked for it; docs — guide is wrong'),
+        body: z.string().describe('What happened, in your own words. At least a sentence or two.'),
+        context: z
+            .string()
+            .optional()
+            .describe('What you were trying to do. Without it a missing-endpoint report cannot be acted on.'),
+    },
+}, async ({ kind, body, context }) => {
+    try {
+        const scope = await need();
+        // Проект не передаём: репорт к нему не привязан, и на туннеле без
+        // выбранного проекта это была бы единственная причина отказа.
+        const res = await call({ token: scope.token }, 'POST', '/report', {
+            kind,
+            body,
+            context,
+            client: 'Claude Code (MCP)',
+        });
+        return text(`Sent to the Chatick team (${res.id}). It is read by a human, not implemented automatically — ` +
+            'tell the person it was passed on, and do not promise a fix or a date.');
     }
     catch (e) {
         return fail(e);

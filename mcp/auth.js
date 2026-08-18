@@ -26,6 +26,17 @@ const TOKEN_FILE = join(homedir(), '.chatick', 'mcp-token.json');
  */
 const PORT_FILE = join(homedir(), '.chatick', 'desktop-port.json');
 let memory = null;
+/**
+ * Область по сохранённому токену.
+ *
+ * Файлы, записанные до появления мастер-доступа, поля не имеют — для них
+ * работает старое правило: есть проект значит проектный туннель, нет —
+ * компанейский. Мастером такой токен не назовётся, и это верно: мастер-доступ
+ * тогда ещё не выдавался.
+ */
+function kindOf(s) {
+    return s.kind ?? (s.projectId ? 'project' : 'company');
+}
 function load() {
     try {
         return JSON.parse(readFileSync(TOKEN_FILE, 'utf8'));
@@ -119,6 +130,9 @@ export async function waitForApproval(deviceCode, maxMs = 300_000) {
                 token: data.token,
                 user: data.user,
                 projectId: data.project?.id ?? null,
+                // Старый сервер поля не пришлёт — тогда как раньше: есть проект
+                // значит проектный туннель, нет — компанейский.
+                kind: data.scope ?? (data.project?.id ? 'project' : 'company'),
                 savedAt: new Date().toISOString(),
             };
         }
@@ -135,7 +149,7 @@ export async function currentScope() {
         return memory;
     const stored = load();
     if (stored && (await alive(stored.token))) {
-        memory = { token: stored.token, projectId: stored.projectId };
+        memory = { token: stored.token, projectId: stored.projectId, kind: kindOf(stored) };
         return memory;
     }
     return null;
@@ -170,13 +184,13 @@ export async function connectViaDesktop() {
     if (!granted)
         return null;
     save(granted);
-    memory = { token: granted.token, projectId: granted.projectId };
+    memory = { token: granted.token, projectId: granted.projectId, kind: kindOf(granted) };
     return memory;
 }
 /** Записать токен, полученный device flow. */
 export function acceptToken(stored) {
     save(stored);
-    memory = { token: stored.token, projectId: stored.projectId };
+    memory = { token: stored.token, projectId: stored.projectId, kind: kindOf(stored) };
     return memory;
 }
 export function forget() {

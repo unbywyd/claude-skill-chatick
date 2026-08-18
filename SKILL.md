@@ -66,6 +66,41 @@ field semantics and this person's permissions, still read the server's guide.
 
 ---
 
+## 1.5. Write in the project's language — always
+
+**Every word that lands in Chatick is written in the language of the project:**
+task titles and descriptions, comments, checklist items, chat messages, notes,
+documents, release stage comments. No exceptions.
+
+Take it from the data, never from a guess:
+
+```bash
+curl -s https://api.chatick.com/x/projects -H "authorization: Bearer $TOKEN"
+# each project carries "language": "he" | "ru" | "en" | ...
+```
+
+`GET /x/context` reports it too, for the project you are scoped to — along
+with the team and the chat rules.
+
+**The trap:** the human talks to you in one language and their project runs in
+another. A manager writes to you in Russian about a Hebrew project — the task
+still goes in Hebrew, because it will be read by the team, not by them. Your
+reply *to the human* stays in their language; what you *write into Chatick*
+follows the project. Two audiences, two languages, in the same turn.
+
+**Why it matters more than it looks.** A task in the wrong language is not a
+cosmetic flaw — it is work handed to someone who must translate it before they
+can start, and who cannot be sure the translation says what you meant. In an
+RTL project a Russian description also breaks the layout of every card it
+appears in.
+
+If `language` is missing or you genuinely cannot tell, match the existing tasks
+you can read, and say in your reply which language you chose and why. Do not
+fall back to English because it feels neutral — it is neutral to you, not to
+the team.
+
+---
+
 ## 2. Connect — device flow, no secrets in chat
 
 **Check for the tool before you print a code. Do not skip this.**
@@ -87,9 +122,27 @@ Never announce that you are "connecting through MCP" before confirming the tool
 exists, and never ask the human whether MCP is available: they cannot see your
 tool list, and you can.
 
-**If they ask you to update this skill**, it is a git clone — run it for them
-from the skill directory (`~/.claude/skills/chatick` unless they installed it
-elsewhere):
+### Check once per session that this skill is current
+
+**Do this after connecting, before the first real call** — not only when asked.
+The skill is a git clone, and the product moves faster than your copy of it.
+A stale skill is worse than no skill: it states endpoints and rules with full
+confidence, and you follow them into behaviour that was corrected weeks ago.
+
+```bash
+cd ~/.claude/skills/chatick && git fetch --quiet && git status -sb | head -1
+```
+
+- A bare `## <branch>...origin/<branch>` → you are current. Say nothing, carry
+  on. (The branch name varies; read the brackets, not the name.)
+- `[behind N]` → tell the human in one line that the skill is N commits behind
+  and offer to pull. Do not pull unattended: it rewrites files in their home
+  directory, and the change only takes effect after a restart they must choose
+  to make.
+- The command fails (no network, no remote, not a clone) → carry on silently.
+  A missing update check must never block the actual work.
+
+When they say yes:
 
 ```bash
 cd ~/.claude/skills/chatick && git pull
@@ -98,8 +151,13 @@ node scripts/install.mjs   # only if mcp/ changed; harmless otherwise
 
 Then tell them to restart Claude Code, and say why: you are running the copy
 loaded at startup, so until they restart, the files on disk are new and your
-behaviour is old. Do not claim the update took effect in this session — it did
-not, and you cannot verify it from inside.
+behaviour is old. **Do not claim the update took effect in this session** — it
+did not, and you cannot verify it from inside. For the rest of this session
+keep following the old rules, since those are the ones you actually loaded.
+
+**The server's guide always outranks this file** (§1). If `GET /x/guide`
+disagrees with anything here, the guide is right and this skill is the stale
+one — that is a signal worth mentioning to the human.
 
 The steps below are for the second case only — by hand, over curl.
 
@@ -187,9 +245,9 @@ all four:
 it is not obvious; the wrong project hides the task from the people who needed
 it.
 
-**What language.** Write in the language the project already speaks — read a
-few existing tasks and match them. A Russian task in a Hebrew project is one
-more thing for someone to translate before they can start.
+**What language.** The project's, not yours — see §1.5. It is the rule broken
+most often, because the language you are being *spoken to in* is not
+necessarily the language the project is *written in*.
 
 **Who does it.** `"assignee"` takes a userId, or `"me"`. Take real ids from
 `GET /x/members` — never invent one. An unassigned task belongs to nobody and
@@ -327,6 +385,10 @@ somebody opens in three weeks asking "why was this done this way".
 
 A closing comment says: what you did, what you verified it with, and what is
 still open. "Done" is not a report.
+
+**In the project's language** (§1.5). The comment is read by the team, not by
+the person who happens to be talking to you right now — and they are often not
+the same people, nor the same language.
 
 **Report what actually happened.** If the tests fail, say so with the output.
 If you did part of the work, say which part. If you spun off a second task,
@@ -532,6 +594,10 @@ dropped silently, not guessed.
   the sprint.
 - **Do not invent members, projects or ids.** Read them from `GET /x/members`
   and `GET /x/projects`.
+- **Never write into Chatick in your own language instead of the project's.**
+  Tasks, comments, checklists, chat, notes — all follow the project (§1.5).
+  Answering the human in Russian and filing the task in Russian, in a Hebrew
+  project, is the single most common way this goes wrong.
 
 ---
 
@@ -560,12 +626,35 @@ the general feed did not surface it.
 Both accept `?since=<ISO>` — ask for what is new since a moment you already
 saw, instead of pulling the last thirty and eyeballing them.
 
+**Clear what you handled, as you handle it.** Reading a notification does not
+mark it read: the person keeps seeing a counter for work that is already done,
+cannot tell it apart from what still needs them, and eventually stops looking at
+the number at all. Use `chatick_inbox_read` (or `POST /x/inbox/read`) — and
+prefer clearing by task:
+
+```bash
+curl -s -X POST https://api.chatick.com/x/inbox/read \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"entityType":"task","entityId":"<task id>"}'
+```
+
+One task collects several notifications — assigned, mentioned, commented — and
+clearing them one by one means first fetching `/x/mentions` to learn their ids.
+By entity you use the task id you already have, and all of them go at once.
+
+This is the step that gets skipped. Eight tasks were once worked through in full
+— comments written, statuses moved, everything reassigned — and every one of
+them stayed unread, because nothing in the work itself clears a notification.
+
 When picking up work, `GET /x/tasks?fields=brief` also tells you where a
 conversation is waiting: `unansweredMention: true` means this person was
 mentioned in the comments and has not written since.
 
 Then, for a piece of work:
 
+0. **Once per session:** confirm the skill is current (§2) and note the
+   project's language (§1.5). Both take one call and both go stale silently —
+   nothing later in this list will remind you.
 1. **Task first** — open the one you were given, or create it (§4).
 2. **Read its comments and look at its files** — the description is what was
    asked, the comments are what was decided since, and the screenshot is often
@@ -578,7 +667,8 @@ Then, for a piece of work:
 8. **Access the work needs** → a resource, linked to the task, shared with the
    people who need it (§10).
 9. **Closing comment** — what you did, what you verified with, what is open,
-   and who you granted access to.
+   and who you granted access to. In the project's language (§1.5), even when
+   the conversation with you is in another.
 10. **`done` or `review`** — and never without that comment.
 
 When you are done for good: `POST /x/disconnect` closes the tunnel.

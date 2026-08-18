@@ -32,6 +32,8 @@ POST   /x/disconnect
 GET    /x/mentions                             ?unread=0 &since=<ISO>
 GET    /x/inbox                                ?unread=0 &since=<ISO>
 POST   /x/inbox/read                           {"ids":["..."]} or {"all":true}
+       {"entityType":"task","entityId":"<id>"}  clears every notification about
+                                                one task — the id you already have
 ```
 
 `/x/mentions` is only what was addressed to this person: mentions in comments,
