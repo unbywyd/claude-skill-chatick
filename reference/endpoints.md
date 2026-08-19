@@ -66,13 +66,19 @@ GET    /x/tasks
 PATCH  /x/tasks/bulk                           {"tasks":["TASK-4","TASK-7"], "set":{...}, "refs":{"TASK-4":"19.1"}}
 DELETE /x/tasks/bulk                           {"tasks":["TASK-4","TASK-7"]}
 GET    /x/tasks/:id
-POST   /x/tasks                                {"title","description?","assignee?","status?","priority?","estimateMinutes?","sprintId?","attachmentIds?","resourceIds?","refs?"}
+POST   /x/tasks                                {"title","description?","assignee?","status?","priority?","estimateMinutes?","sprintId?","attachmentIds?","resourceIds?","refs?","links?"}
 PATCH  /x/tasks/:id
 DELETE /x/tasks/:id
 POST   /x/tasks/:id/restore
 GET    /x/tasks/:id/blockers
 POST   /x/tasks/:id/blockers                   {"tasks":["TASK-3","TASK-5"], "side":"blockedBy"|"blocking"}
 DELETE /x/tasks/:id/blockers/:linkId
+
+# Links: where a task came from, what resembles it. NOT blockers — they hold
+# nothing back. kind: "derived" (grew out of, directed) | "related" (symmetric).
+GET    /x/tasks/:id/links
+POST   /x/tasks/:id/links                      {"tasks":["TASK-3"], "kind":"derived"|"related"}
+DELETE /x/tasks/:id/links/:linkId
 GET    /x/tasks/:id/checklist
 POST   /x/tasks/:id/checklist                  {"items":["...","..."]} or {"text":"...","note":"..."}
 PATCH  /x/tasks/:id/checklist/:itemId

@@ -294,6 +294,40 @@ Lists leave `shortUrl` out — a short link is a row in a table, and fifty of
 them per listing would be written for nothing. Fetch the single task when you
 actually need one.
 
+### Splitting one task into several — link them, in the same call
+
+This is your most common move: a client leaves ten remarks in a single task,
+you turn them into five. Do it without linking and the connection lives only
+in your head — a week later nobody opening any of the five can tell where it
+came from, or that four siblings exist.
+
+Pass `"links"` when you create each one:
+
+```bash
+-d '{
+  "title": "Fix the Safari sign-in",
+  "estimateMinutes": 60,
+  "links": ["TASK-3"]
+}'
+```
+
+`["TASK-3"]` means *this task grew out of TASK-3* — `kind` defaults to
+`derived`. For a sibling rather than a source, say so:
+`[{"task":"TASK-9","kind":"related"}]`.
+
+Do it **in the create call**, not afterwards. A second pass is the one you
+forget on the fifth task, and a half-linked set is worse than none: it reads
+as though the unlinked ones came from somewhere else.
+
+**Links are not blockers.** A blocker says *not yet* and holds work back; a
+link says *look here too* and holds nothing. Never reach for `/blockers` to
+express "these belong together" — the lock would tell everyone the work is
+waiting when it is not, and once a lock has lied nobody trusts the next one.
+
+A number that does not resolve is skipped rather than failing the call, and
+the reply lists what actually got linked. Check it: silence there means the
+link you thought you made does not exist.
+
 ---
 
 ## 5. Checklist — if the task has steps, they must be visible
