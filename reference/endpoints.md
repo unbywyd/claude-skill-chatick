@@ -91,6 +91,8 @@ DELETE /x/tasks/:id/resources/:resourceId
 # downloading is a separate call and is audited. Uploading: ask the human.
 GET    /x/resources/:id/files
 GET    /x/resources/:id/files/:fileId          binary download
+POST   /x/resources/:id/files                  multipart: file=@path
+                                               (MCP: chatick_upload with resourceId)
 GET    /x/tasks/:id/checklist
 POST   /x/tasks/:id/checklist                  {"items":["...","..."]} or {"text":"...","note":"..."}
 PATCH  /x/tasks/:id/checklist/:itemId

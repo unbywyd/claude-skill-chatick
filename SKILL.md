@@ -620,9 +620,27 @@ curl -s "https://api.chatick.com/x/resources/<id>/files/<fileId>?project=$P" \
   -H "authorization: Bearer $TOKEN" -o main.jks
 ```
 
-The list gives names and sizes, never contents. **Uploading is not available
-to you yet:** ask the human to attach the file in the resource card, and say
-why it belongs there instead of project files.
+The list gives names and sizes, never contents.
+
+**You can upload it yourself.** With MCP that is one call:
+
+```
+chatick_upload(project, path="/abs/path/main.jks", resourceId="<id>")
+```
+
+It reads the file, builds the multipart body and supplies the token — there is
+no curl to assemble and no token to fetch. Without `resourceId` the file goes
+to project files instead, where the whole team sees it: right for a build, a
+screenshot or a log, wrong for anything that unlocks something.
+
+By curl it is the same endpoint:
+
+```bash
+curl -X POST "https://api.chatick.com/x/resources/<id>/files?project=$P" \
+  -H "authorization: Bearer $TOKEN" -F "file=@./main.jks"
+```
+
+Do not ask the human to attach it by hand.
 
 That reason is worth stating plainly, because it is the whole point: an
 Android signing key cannot be reissued for an app that is already published.
