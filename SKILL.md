@@ -457,6 +457,34 @@ carries on with the same description and task.
 
 ---
 
+### Fixing time after the fact
+
+The tracker only stays useful if wrong entries get corrected, and they will be
+wrong: the timer ran on the wrong project, was never started, or was started an
+hour late. You can fix all of it.
+
+```
+chatick_time_list(project, from="2026-08-01")     # find the entry id
+chatick_time_update(project, entryId, moveToProject="<other project id>")
+chatick_time_update(project, entryId, startedAt="2026-08-19T09:00:00Z")
+chatick_time_log(project, startedAt=..., endedAt=..., description="...")
+chatick_timer_stop(project)                        # even one left in another project
+chatick_time_report(project, from=..., to=...)
+```
+
+**Moving between projects** is the case worth remembering: someone worked on
+one thing while the timer ran on another and noticed at the end of the day.
+Without the move they either lose the hours or retype them by hand, and most
+people simply shrug — after which the tracker no longer matches reality. The
+move drops the entry's task link, because that task stays in the project you
+are leaving.
+
+**Never invent hours.** Log what the person told you and nothing more. Made-up
+time is worse than missing time: somebody bills by it, and the error is quiet —
+wrong hours look exactly like right ones.
+
+Someone else's entry needs `tasks.edit`; your own is always yours to fix.
+
 ## 9. Telling the human what is on their plate
 
 **Explain tasks in your own words. Never paste the dashboard back at them.**
