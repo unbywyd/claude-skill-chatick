@@ -79,6 +79,12 @@ DELETE /x/tasks/:id/blockers/:linkId
 GET    /x/tasks/:id/links
 POST   /x/tasks/:id/links                      {"tasks":["TASK-3"], "kind":"derived"|"related"}
 DELETE /x/tasks/:id/links/:linkId
+
+# Access a task needs. Name and address only — never secret values.
+# Prefer these over "resourceIds" in PATCH: that field REPLACES the whole list.
+GET    /x/tasks/:id/resources
+POST   /x/tasks/:id/resources                  {"resources":["<resourceId>"]}
+DELETE /x/tasks/:id/resources/:resourceId
 GET    /x/tasks/:id/checklist
 POST   /x/tasks/:id/checklist                  {"items":["...","..."]} or {"text":"...","note":"..."}
 PATCH  /x/tasks/:id/checklist/:itemId

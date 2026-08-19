@@ -572,6 +572,38 @@ to make.
 
 ---
 
+### Giving a task the access it needs
+
+A task almost always needs something: a staging URL, a key, a database. Link
+the resource to the task — never paste the address and password into the
+description. Text in a description is readable by everyone who can see the
+task, it cannot be taken back, and it outlives whatever reason you had.
+
+```bash
+# what this task already needs
+curl -s "https://api.chatick.com/x/tasks/TASK-81/resources?project=$P" \
+  -H "authorization: Bearer $TOKEN"
+
+# give it one more (ids from /x/resources)
+curl -s -X POST "https://api.chatick.com/x/tasks/TASK-81/resources?project=$P" \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"resources":["<resourceId>"]}'
+
+# take one away — the resource itself stays in the project
+curl -s -X DELETE "https://api.chatick.com/x/tasks/TASK-81/resources/<resourceId>?project=$P" \
+  -H "authorization: Bearer $TOKEN"
+```
+
+Prefer these over the `"resourceIds"` field in `PATCH /x/tasks/<id>`. That
+field **replaces the whole list**: send one id and you silently wipe links
+somebody else made, and nobody finds out until the access is needed.
+
+None of these return secret **values** — only that the access exists and what
+it is called. That is deliberate: a password fetched here would sit in your
+context and in the chat history, where it survives the conversation and cannot
+be revoked. Read a value only when you actually need to use it, and never
+repeat it back into a message, a task or a comment.
+
 ## 11. Documents — check what you wrote actually landed
 
 Long-lived project text lives in documents: specs, decisions, notes that
