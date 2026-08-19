@@ -2,7 +2,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { call, BridgeError } from './bridge.js';
+import { call, upload, BridgeError } from './bridge.js';
 import { currentScope, connectViaDesktop, startDeviceFlow, waitForApproval, acceptToken, forget } from './auth.js';
 /**
  * MCP-сервер Chatick.
@@ -363,6 +363,12 @@ server.registerTool('chatick_task_create', {
         priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
         resourceIds: z.array(z.string()).optional().describe('Resources this task needs — link them, never paste secrets'),
         releaseIds: z.array(z.string()).optional().describe('Versions this task ships in — ids from chatick_releases'),
+        links: z
+            .array(z.union([z.string(), z.object({ task: z.string(), kind: z.enum(['derived', 'related']) })]))
+            .optional()
+            .describe('Tasks this one grew out of: ["TASK-3"], or [{"task":"TASK-9","kind":"related"}] for a sibling. ' +
+            'Use it whenever you split one task into several — link each new task back to the original in the ' +
+            'same call, because a second call is the one you forget. NOT blockers: links hold nothing back.'),
     },
 }, async ({ project, ...body }) => {
     try {
@@ -374,8 +380,9 @@ server.registerTool('chatick_task_create', {
 });
 server.registerTool('chatick_task_update', {
     title: 'Change a task',
-    description: 'Status, assignee, estimate, linked resources. Moving to in_progress belongs BEFORE the work, not after. ' +
-        'Every status change deserves a comment: the board says that something moved, only the comment says what.',
+    description: 'Status, assignee, estimate, linked resources, related tasks. Moving to in_progress belongs BEFORE the work, ' +
+        'not after. Every status change deserves a comment: the board says that something moved, only the comment ' +
+        'says what.',
     inputSchema: {
         project: z.string(),
         task: z.string(),
@@ -389,6 +396,12 @@ server.registerTool('chatick_task_update', {
         priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
         resourceIds: z.array(z.string()).optional(),
         releaseIds: z.array(z.string()).optional().describe('Versions this task ships in — ids from chatick_releases'),
+        links: z
+            .array(z.union([z.string(), z.object({ task: z.string(), kind: z.enum(['derived', 'related']) })]))
+            .optional()
+            .describe('Tasks this one grew out of: ["TASK-3"], or [{"task":"TASK-9","kind":"related"}] for a sibling. ' +
+            'ADDS links, never replaces them — removing one is a separate call (DELETE /tasks/<id>/links/<linkId> ' +
+            'via chatick_request). NOT blockers: links hold nothing back.'),
     },
 }, async ({ project, task, ...body }) => {
     try {
@@ -494,6 +507,150 @@ server.registerTool('chatick_timer_start', {
     }
 });
 // --- Ресурсы -----------------------------------------------------------------
+server.registerTool('chatick_resource_update', {
+    title: 'Change a resource',
+    description: 'Edits an existing resource: name, address, description, or who may see its secrets. Use it instead of ' +
+        'creating a second resource with the fix — a duplicate means the secrets get re-entered by hand, every task ' +
+        'linked to the old one keeps pointing at it, and somebody has to delete the leftover. Only the fields you ' +
+        'pass are changed. Descriptions render as markdown.',
+    inputSchema: {
+        project: z.string(),
+        resourceId: z.string(),
+        name: z.string().optional(),
+        url: z.string().optional(),
+        description: z.string().optional(),
+        viewers: z
+            .array(z.string())
+            .optional()
+            .describe('User ids who may reveal the secrets. Replaces the list; only the author may change it'),
+    },
+}, async ({ project, resourceId, ...body }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'PATCH', `/resources/${encodeURIComponent(resourceId)}`, body));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_upload', {
+    title: 'Upload a file',
+    description: 'Uploads a file from this machine to Chatick. Give it the path — reading the file, the multipart body and ' +
+        'the token are handled for you; there is no curl to assemble and no token to fetch. ' +
+        'With "resourceId" the file is stored UNDER THAT RESOURCE: encrypted at rest, visible only to people who ' +
+        'may see its secrets, and never listed among project files. That is where a keystore, a certificate or a ' +
+        'private key belongs — an Android signing key cannot be reissued for an app already published, so a ' +
+        'resource holding only the password protects nothing. ' +
+        'Without "resourceId" it goes to project files, where the whole team sees it: right for a build, a ' +
+        'screenshot or a log, wrong for anything that unlocks something.',
+    inputSchema: {
+        project: z.string(),
+        path: z.string().describe('Absolute path to the file on this machine'),
+        resourceId: z
+            .string()
+            .optional()
+            .describe('Store under this resource, encrypted. Omit for ordinary project files'),
+        taskId: z.string().optional().describe('Attach to a task — project files only, ignored with resourceId'),
+    },
+}, async ({ project, path: filePath, resourceId, taskId }) => {
+    try {
+        const { readFile } = await import('node:fs/promises');
+        const { basename } = await import('node:path');
+        let bytes;
+        try {
+            bytes = await readFile(filePath);
+        }
+        catch {
+            // Отдельная ветка: «файла нет» — ошибка человека, и она должна
+            // читаться как таковая, а не как отказ сервера.
+            return fail(new Error(`Cannot read file: ${filePath}`));
+        }
+        const scope = { ...(await need()), projectId: project };
+        const file = { name: basename(filePath), bytes: new Uint8Array(bytes) };
+        return json(resourceId
+            ? await upload(scope, `/resources/${encodeURIComponent(resourceId)}/files`, file)
+            : await upload(scope, '/files', file, taskId ? { taskId } : undefined));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_resource_file_remove', {
+    title: 'Remove a file from a resource',
+    description: 'Deletes one file kept under a resource — the encrypted object leaves storage too. Use it to undo your own ' +
+        'mistake: attaching the wrong file and leaving it there means somebody else has to clean up, and a stray ' +
+        'keystore is exactly the kind of leftover nobody wants to inherit.',
+    inputSchema: { project: z.string(), resourceId: z.string(), fileId: z.string() },
+}, async ({ project, resourceId, fileId }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'DELETE', `/resources/${encodeURIComponent(resourceId)}/files/${encodeURIComponent(fileId)}`));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_resource_files', {
+    title: 'Files kept under a resource',
+    description: 'Lists files attached to a resource: keystore, certificate, private key. Name and size only — never the ' +
+        'contents. These files are encrypted at rest and never appear in project files, which is the point: a ' +
+        'signing key cannot be reissued for an app that is already published, so "password saved, file not saved" ' +
+        'is a false sense of safety.',
+    inputSchema: { project: z.string(), resourceId: z.string() },
+}, async ({ project, resourceId }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'GET', `/resources/${encodeURIComponent(resourceId)}/files`));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_task_resources', {
+    title: 'Access a task needs',
+    description: 'Resources linked to a task: staging URLs, keys, databases — name and address only. Secret VALUES are never ' +
+        'returned: reading one is a separate, deliberate call, and it stays that way because a password that passed ' +
+        'through here would end up in your context and in the chat history, where it outlives the conversation and ' +
+        'cannot be revoked.',
+    inputSchema: { project: z.string(), task: z.string() },
+}, async ({ project, task }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'GET', `/tasks/${encodeURIComponent(task)}/resources`));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_task_resource_link', {
+    title: 'Give a task the access it needs',
+    description: 'Links existing resources (ids from chatick_resources) to a task. ADDS them without touching what is already ' +
+        'linked — unlike the "resourceIds" field, which replaces the whole list and silently wipes links somebody ' +
+        'else made. Link the resource instead of pasting an address or a password into the task description: text in ' +
+        'a description is readable by everyone who can see the task and cannot be taken back.',
+    inputSchema: {
+        project: z.string(),
+        task: z.string(),
+        resources: z.array(z.string()).min(1).describe('Resource ids from chatick_resources'),
+    },
+}, async ({ project, task, resources }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'POST', `/tasks/${encodeURIComponent(task)}/resources`, {
+            resources,
+        }));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_task_resource_unlink', {
+    title: 'Remove one access from a task',
+    description: 'Unlinks one resource from a task. Other links stay, and the resource itself keeps existing in the project.',
+    inputSchema: { project: z.string(), task: z.string(), resourceId: z.string() },
+}, async ({ project, task, resourceId }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'DELETE', `/tasks/${encodeURIComponent(task)}/resources/${encodeURIComponent(resourceId)}`));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
 server.registerTool('chatick_resource_create', {
     title: 'Store a link or credentials',
     description: 'Creates a resource: a link plus optional secrets under it. Link it to the task instead of pasting a password ' +
@@ -534,6 +691,8 @@ server.registerTool('chatick_resources', {
 server.registerTool('chatick_request', {
     title: 'Any other bridge endpoint',
     description: 'Raw call to the Chatick bridge, for the endpoints without a dedicated tool here: sprints, documents, blockers, ' +
+        'task links (GET/POST /tasks/<id>/links, DELETE /tasks/<id>/links/<linkId> — links say where a task came from, ' +
+        'they never block anything), ' +
         'files, chat, notes. Read GET /x/guide first — it lists every path and the exact permissions of this person. ' +
         'Paths start with a slash and omit the /x prefix: "/sprints", "/documents/<id>/append".',
     inputSchema: {
@@ -552,20 +711,22 @@ server.registerTool('chatick_request', {
     }
 });
 server.registerTool('chatick_report', {
-    title: 'Tell the Chatick team what got in your way',
-    description: 'Report a gap in Chatick itself: an endpoint that does not exist, behaviour that contradicts the guide, a feature ' +
-        'the person asked for and does not have, or documentation that is wrong. Send it when you actually hit the wall ' +
-        'while doing something — not as a wishlist. It is read by a human and is NOT implemented automatically, so never ' +
-        'promise the person a fix or a date. This is about Chatick, never about the person own project or their team.',
+    title: 'Send the Chatick team a request, an idea or a bug',
+    description: 'Send the Chatick team a request, an idea, a complaint or a bug — about CHATICK ITSELF. ' +
+        'USE IT WHENEVER SOMEONE WANTS SOMETHING THE PRODUCT DOES NOT DO, or finds something awkward, confusing or broken. ' +
+        'A person asking "can it also…" IS a report: do not answer "there is no such thing" and move on — say you will pass ' +
+        'it on, and pass it on. Help them phrase it: ask what exactly is missing and what they were trying to do, then send that. ' +
+        'A human reads these and nothing is implemented automatically, so never promise a fix or a date. Send what the PERSON ' +
+        'said, not ideas of your own, and never anything about their own project or team — that belongs in tasks and notes.',
     inputSchema: {
         kind: z
             .enum(['missing', 'bug', 'request', 'docs'])
-            .describe('missing — no endpoint for it; bug — behaved unlike the guide; request — person asked for it; docs — guide is wrong'),
-        body: z.string().describe('What happened, in your own words. At least a sentence or two.'),
+            .describe('request — someone wants something Chatick does not do (the most common); bug — behaved unlike the guide; missing — no endpoint for it; docs — guide is wrong'),
+        body: z.string().describe('What they want or what went wrong, in their words. At least a sentence or two.'),
         context: z
             .string()
             .optional()
-            .describe('What you were trying to do. Without it a missing-endpoint report cannot be acted on.'),
+            .describe('What was being attempted when it came up. Without it half the reports cannot be acted on.'),
     },
 }, async ({ kind, body, context }) => {
     try {

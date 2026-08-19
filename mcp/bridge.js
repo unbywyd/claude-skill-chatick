@@ -45,7 +45,16 @@ export async function call(scope, method, path, body, query) {
         body: body === undefined ? undefined : JSON.stringify(body),
     });
     const text = await res.text();
-    const data = text ? JSON.parse(text) : {};
+    /**
+     * Разбираем по тому, что пришло, а не вслепую.
+     *
+     * GET /guide отдаёт markdown, и слепой JSON.parse ронял вызов с
+     * «Unexpected token '#'». Инструкция была недостижима через инструмент,
+     * который сам же велит прочитать её первым делом.
+     */
+    const ct = res.headers.get('content-type') ?? '';
+    const looksJson = ct.includes('json') || /^\s*[[{]/.test(text);
+    const data = text && looksJson ? JSON.parse(text) : text ? { text } : {};
     if (!res.ok) {
         throw new BridgeError(res.status, data.error ?? `HTTP ${res.status}`, data.hint);
     }
@@ -58,4 +67,36 @@ export async function tunnelLeft(scope) {
     return left ? Number(left) : null;
 }
 export const apiBase = () => BASE;
+/**
+ * Загрузка файла — единственное место, где тело не JSON.
+ *
+ * Отдельная функция, а не флаг в call(): там тело всегда сериализуется в
+ * JSON, и multipart туда не вписывается, не сломав остальные сорок вызовов.
+ *
+ * Токен подставляется здесь же и наружу не выходит. Отдавать его модели,
+ * чтобы она собрала curl сама, значило бы положить доступ в контекст и в
+ * историю переписки, откуда его не отозвать.
+ */
+export async function upload(scope, path, file, extra) {
+    const url = new URL(`${BASE}/x${path}`);
+    if (scope.projectId)
+        url.searchParams.set('project', scope.projectId);
+    const form = new FormData();
+    form.set('file', new Blob([file.bytes], { type: file.type || 'application/octet-stream' }), file.name);
+    for (const [k, v] of Object.entries(extra ?? {}))
+        form.set(k, v);
+    // content-type не ставим руками: границу multipart генерирует сам FormData,
+    // и подменённый заголовок ломает разбор на сервере.
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${scope.token}` },
+        body: form,
+    });
+    const text = await res.text();
+    const data = text && /^\s*[[{]/.test(text) ? JSON.parse(text) : { text };
+    if (!res.ok) {
+        throw new BridgeError(res.status, data.error ?? `HTTP ${res.status}`, data.hint);
+    }
+    return data;
+}
 //# sourceMappingURL=bridge.js.map
