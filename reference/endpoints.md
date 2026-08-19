@@ -85,6 +85,12 @@ DELETE /x/tasks/:id/links/:linkId
 GET    /x/tasks/:id/resources
 POST   /x/tasks/:id/resources                  {"resources":["<resourceId>"]}
 DELETE /x/tasks/:id/resources/:resourceId
+
+# Files kept under a resource: keystore, certificate, private key.
+# Encrypted at rest, never listed among project files. Names and sizes only;
+# downloading is a separate call and is audited. Uploading: ask the human.
+GET    /x/resources/:id/files
+GET    /x/resources/:id/files/:fileId          binary download
 GET    /x/tasks/:id/checklist
 POST   /x/tasks/:id/checklist                  {"items":["...","..."]} or {"text":"...","note":"..."}
 PATCH  /x/tasks/:id/checklist/:itemId

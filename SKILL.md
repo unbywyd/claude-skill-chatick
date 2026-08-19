@@ -604,6 +604,42 @@ context and in the chat history, where it survives the conversation and cannot
 be revoked. Read a value only when you actually need to use it, and never
 repeat it back into a message, a task or a comment.
 
+### Secrets that are not text
+
+A keystore, a certificate, a private key — these live as **files under the
+resource**, not in project files. Encrypted at rest, visible only to the
+people who may see that resource's secrets.
+
+```bash
+# what is kept under it
+curl -s "https://api.chatick.com/x/resources/<id>/files?project=$P" \
+  -H "authorization: Bearer $TOKEN"
+
+# download one — binary, and the download is audited
+curl -s "https://api.chatick.com/x/resources/<id>/files/<fileId>?project=$P" \
+  -H "authorization: Bearer $TOKEN" -o main.jks
+```
+
+The list gives names and sizes, never contents. **Uploading is not available
+to you yet:** ask the human to attach the file in the resource card, and say
+why it belongs there instead of project files.
+
+That reason is worth stating plainly, because it is the whole point: an
+Android signing key cannot be reissued for an app that is already published.
+Lose the file and updates stop forever. A resource holding only the password
+is a false sense of safety — the password unlocks something that still has to
+exist somewhere.
+
+### Fixing a resource instead of duplicating it
+
+`PATCH /x/resources/<id>` changes name, address, description or viewers. Only
+the fields you pass. Reach for it before creating a second resource with the
+correction: a duplicate means the secrets get typed in again by hand, every
+task linked to the old one keeps pointing at it, and somebody has to clean up
+the leftover.
+
+Descriptions render as markdown, the same as task descriptions and comments.
+
 ## 11. Documents — check what you wrote actually landed
 
 Long-lived project text lives in documents: specs, decisions, notes that
