@@ -316,7 +316,7 @@ server.registerTool('chatick_tasks', {
     inputSchema: {
         project: z.string(),
         assignee: z.string().optional().describe('"me" or a user id'),
-        status: z.enum(['todo', 'in_progress', 'review', 'done']).optional(),
+        status: z.enum(['todo', 'in_progress', 'review', 'verified', 'done']).optional(),
         q: z.string().optional().describe('Search in title'),
         fields: z.enum(['brief']).optional(),
         limit: z.number().max(200).optional(),
@@ -381,12 +381,14 @@ server.registerTool('chatick_task_create', {
 server.registerTool('chatick_task_update', {
     title: 'Change a task',
     description: 'Status, assignee, estimate, linked resources, related tasks. Moving to in_progress belongs BEFORE the work, ' +
-        'not after. Every status change deserves a comment: the board says that something moved, only the comment ' +
-        'says what.',
+        'not after. When the work is done move it to review, not to done: you are handing it over, and closing ' +
+        'your own work skips the person who has to check it. verified belongs to whoever did the checking — never ' +
+        'set it on your own work. Every status change deserves a comment: the board says that something moved, ' +
+        'only the comment says what.',
     inputSchema: {
         project: z.string(),
         task: z.string(),
-        status: z.enum(['todo', 'in_progress', 'review', 'done']).optional(),
+        status: z.enum(['todo', 'in_progress', 'review', 'verified', 'done']).optional(),
         assignee: z.string().optional(),
         estimateMinutes: z.number().int().positive().optional(),
         dueDate: z

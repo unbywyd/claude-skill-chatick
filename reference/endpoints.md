@@ -256,7 +256,7 @@ GET    /x/chat/messages
 ## Field values
 
 ```
-status     todo | in_progress | review | done
+status     todo | in_progress | review | verified | done
 priority   low | normal | high | urgent
 assignee   <userId> | "me"
 estimateMinutes   integer, minutes

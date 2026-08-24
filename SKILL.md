@@ -363,7 +363,7 @@ the task is still your decision, and still gets a comment.
 
 ## 6. Statuses — move the task as the work moves
 
-`todo` → `in_progress` → `review` → `done`
+`todo` → `in_progress` → `review` → `verified` → `done`
 
 ```bash
 curl -s -X PATCH "https://api.chatick.com/x/tasks/TASK-81?project=$P" \
@@ -374,11 +374,14 @@ curl -s -X PATCH "https://api.chatick.com/x/tasks/TASK-81?project=$P" \
 - **Take it before you work.** Move to `in_progress` when you start, not when
   you finish. A task sitting in `todo` while you edit its files means someone
   else may pick it up and do the same work twice.
-- **`review` means a human must look.** Use it when the work is done but
-  someone should check it — a merge, a deploy, a decision you are not entitled
-  to make. Do not park things there to avoid saying they are finished.
-- **`done` means done and verified**, not "I wrote the code". If tests failed
-  or you could not check it, say that in a comment and leave it in `review`.
+- **Finish into `review`, never into `done`.** When the work is ready, hand it
+  over: `review` means a human must look — a merge, a deploy, a decision you
+  are not entitled to make. Closing your own work skips the person whose job
+  is to check it, and that is exactly what the ladder exists to prevent.
+- **`verified` belongs to whoever checked.** Never set it on your own work: you
+  cannot confirm your own output. If tests failed or you could not check
+  something, say so in a comment and leave the task in `review`.
+- **`done` comes after the check**, not instead of it.
 - **Never change status silently.** Every move gets a comment. The board tells
   people *that* something moved; only the comment tells them *what*.
 
