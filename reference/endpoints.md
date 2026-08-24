@@ -62,6 +62,7 @@ the task side: `releaseIds` in POST/PATCH `/x/tasks`.
 ## Tasks
 
 ```
+GET    /x/open?link=<link or TASK-81>          task behind a pasted link — short, full URL or number
 GET    /x/tasks
 PATCH  /x/tasks/bulk                           {"tasks":["TASK-4","TASK-7"], "set":{...}, "refs":{"TASK-4":"19.1"}}
 DELETE /x/tasks/bulk                           {"tasks":["TASK-4","TASK-7"]}
