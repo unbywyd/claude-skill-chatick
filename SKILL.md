@@ -359,6 +359,24 @@ Use `"note"` on an item when the outcome needs a word ("does not reproduce on
 Android 14"). Nothing happens automatically when every item is ticked — closing
 the task is still your decision, and still gets a comment.
 
+**A checklist item is often a question, and the answer lives in its note.**
+"Which key do we sign with?" is a checklist item; the reply comes back under
+it, not in the comments. So read the checklist before assuming a task is
+untouched:
+
+```bash
+# the items WITH the answers written under them
+curl -s "https://api.chatick.com/x/tasks/TASK-81/checklist?project=$P"   -H "authorization: Bearer $TOKEN"
+```
+
+`GET /x/tasks/<id>` reports the counts — `checklist: {total, done, answered}`.
+`answered` above `done` means questions were answered while the boxes stayed
+open. That is a task waiting on **you**, not on them: ten answers once sat in a
+task and surfaced nowhere, and the person who wrote them had to add a separate
+comment saying "I answered in the items". Notifications now go out for those
+answers, and they show up in `GET /x/inbox` as the `answers` branch — but the
+answers themselves are only here.
+
 ---
 
 ## 6. Statuses — move the task as the work moves
@@ -536,6 +554,166 @@ Read images, logs and short documents when the situation allows. Skip it when
 the file is huge, binary or plainly irrelevant — and say that you skipped it.
 "I did not open the attachment" is fine; summarising a bug from its title while
 ignoring the screenshot of it is not.
+
+---
+
+## 9.5. People — titles are company-wide, roles are not
+
+**A job title belongs to the company, not to a project.** Someone is a backend
+developer here and there; setting it per project means ten places to keep in
+sync and nine where it will drift.
+
+```bash
+# who is in the company, with their company role and title
+curl -s "https://api.chatick.com/x/company/members?project=$P"   -H "authorization: Bearer $TOKEN"
+
+# "make Tal CEO, Hadeel QA" — this is the call for it
+curl -s -X PATCH "https://api.chatick.com/x/company/members/<userId>?project=$P"   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'   -d '{"jobTitle":"QA engineer"}'
+```
+
+Every project inherits that title unless the project sets its own. Use the
+project-level one (`chatick_member_role`) only when the answer really is
+different there — "here they also run releases".
+
+**Roles are a different weight, and the difference matters.**
+
+| What | What it does |
+|---|---|
+| Job title | describes. Wrong one costs a wrong hint |
+| Project role | admin/member inside one project |
+| Company role | **manager and admin see EVERY project of the company** |
+
+That last row is why a company role is not a title. It grants access to
+projects the person was never added to — including ones nobody meant to show
+them. Set titles freely; **ask the human before raising anyone to manager or
+admin**, and say plainly what it opens.
+
+Changing company roles and titles requires being a company admin. The last
+admin cannot be demoted — otherwise the company is left with no one who can
+hand rights back.
+
+---
+
+## 9.7. The knowledge base — look here before debugging
+
+Solutions, gotchas, requirements the team already learned. It belongs to the
+**company**, not to a project: an answer about Cardcom is needed by everyone
+who meets Cardcom, not only by whoever hit it first.
+
+**Search understands MEANING.** "payment fails" finds "Cardcom rejects foreign
+cards" with no shared word, and it works the same in Hebrew. Ask in your own
+words — do not try to guess the exact wording someone used.
+
+```bash
+# before you start digging into something unfamiliar
+# searches the WHOLE COMPANY by default — an answer from a neighbouring
+# project is exactly the point; ?scope=project narrows to this one
+curl -s "https://api.chatick.com/x/notes?project=$P&q=не проходит оплата"   -H "authorization: Bearer $TOKEN"
+```
+
+Entries marked `matchedBy="meaning"` were found that way — they may share no
+word with your query, and that is the point.
+
+**Write what you learned.** A fix that lives only in a chat is lost the moment
+it ends.
+
+| Type | When |
+|---|---|
+| `solution` | a problem **and** its fix — the reusable kind, the most valuable |
+| `bug` | broken, not yet fixed |
+| `requirement` | a rule to follow |
+| `attention` | a trap the next person will step into |
+| `decision` | we chose this over that, and why |
+| `business` | a company rule: VAT 18%, prices in shekels |
+| `note` | anything else |
+
+Tags matter: they narrow a search that meaning alone cannot — `cardcom`,
+`sms`, `ios`. Body is HTML, like documents.
+
+The project is an optional **origin mark**, not a boundary: it says where this
+came up, and it does not hide the entry from anyone else in the company.
+
+**Access is simple**: you are in the company, so you read and write. You edit
+and delete your own entries; someone else's is for a company admin. There are
+no per-project note permissions — that idea was removed, not forgotten.
+
+---
+
+## 9.8. "Where was that task?" — search by what it was about
+
+Someone works across a dozen projects and remembers the conversation, not the
+project. `chatick_tasks` lists one project; this searches **all of them**:
+
+```bash
+curl -s "https://api.chatick.com/x/search/tasks?q=оплата не проходит"   -H "authorization: Bearer $TOKEN"
+```
+
+**Comments are indexed together with their task.** "Where did we discuss X",
+"which task was that in", "I wrote about it somewhere" land on the task that
+holds the discussion — that is what this is for, and why a search over titles
+alone would not answer it.
+
+By meaning, not by words: a Russian query finds a Hebrew task with no shared
+word. Items carrying `matchedBy="meaning"` were found that way.
+
+Two searches, not one, and the difference matters: **tasks are recalled,
+knowledge is looked up**. Ask `/x/search/tasks` when the project is what you
+are trying to remember; ask `/x/notes` when you want the answer itself,
+whoever wrote it and whenever.
+
+---
+
+## 9.9. The work log — where you left off, and where you leave it
+
+Two calls, and both are obligatory: **read it when you start, write it when you
+stop.** Not when it feels worth it — every session. This is the only thing that
+carries state across the gap between one session and the next.
+
+```bash
+# starting: where did this person leave off
+curl -s "https://api.chatick.com/x/worklog?project=$P" \
+  -H "authorization: Bearer $TOKEN"
+```
+
+The reply opens with **`latestOwn`** — their most recent entry, their open
+draft if they have one. Read it before you ask them anything. They already
+wrote down where they stopped; asking them to repeat it, or rebuilding it from
+tasks and commits, is worse than reading two lines.
+
+```bash
+# stopping: what you did and where it stands
+curl -s -X POST https://api.chatick.com/x/worklog \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"body":"<p>TASK-81: вебхук готов, ретраи не доделаны — падают на 429. Дальше: идемпотентный ключ.</p>","taskId":"<id>"}'
+```
+
+It saves as a **draft**: nobody but them can see it, not even project admins.
+So there is nothing to be careful about — write the messy state, that is what
+it is for. `POST /x/worklog/<id>/publish` makes it project history, and that is
+one-way: published entries can never be edited, only added to.
+
+**Short. Facts only.** Three or four lines: what changed, where it stopped,
+what is next. Not a retelling of the conversation, not a summary of the code
+you just wrote, not a restatement of what the task already says. A long entry
+is an entry nobody reads, and the whole value is that tomorrow it is taken in
+at a glance. If it needs a heading, it is too long.
+
+One open draft per person per project. If one exists, `POST` returns 409 with
+its id — extend that one (`PATCH /x/worklog/<id>`), do not start a second.
+
+Attach `taskId` when the entry is about a single task. Leave it off when it is
+not: "утро ушло на стейджинг" belongs to no task, and forcing one on it makes
+both harder to find later. `PATCH` with `"taskId": ""` unlinks.
+
+**This is not the knowledge base** (§9.7). A note is knowledge that outlives
+the month ("Cardcom не берёт иностранные карты"); a log entry is the state of
+work ("вебхук готов, встал на ретраях"). Notes are looked up years later; log
+entries are read tomorrow, by the next person to touch this. Putting one in the
+other buries both.
+
+**Never quote someone's draft into the chat**, including inside a summary. A
+draft is private by design, and that privacy is the only reason anything
+honest gets written in it.
 
 ---
 
@@ -749,30 +927,46 @@ dropped silently, not guessed.
   Tasks, comments, checklists, chat, notes — all follow the project (§1.5).
   Answering the human in Russian and filing the task in Russian, in a Hebrew
   project, is the single most common way this goes wrong.
+- **Do not flood the work log.** One entry per session, three or four lines of
+  fact (§9.9). Not one per task, not one per hour, and never a retelling of
+  what you just did at length — a log nobody can skim is a log nobody reads,
+  and it buries the two lines that mattered.
+- **Never repeat someone's draft back into the chat or a comment.** Drafts are
+  private to their author by design; that is the only reason honest state gets
+  written in them.
 
 ---
 
 ## 14. The shape of a working session
 
 ```bash
-# where THIS PERSON was asked something — check this first
-curl -s https://api.chatick.com/x/mentions -H "authorization: Bearer $TOKEN"
-
-# everything else waiting for them, across every project
+# the one entry point — what is waiting, across every project
 curl -s https://api.chatick.com/x/inbox -H "authorization: Bearer $TOKEN"
 ```
 
-**Start with `GET /x/mentions`.** It returns only what is addressed to the
-person directly — mentions in comments, chat and notes, plus tasks assigned to
-them. It is a short list, and it is the one that has someone waiting on the
-other end.
+**Start with `GET /x/inbox`, always.** One call answers "what is waiting for
+me". The reply opens with `branches`: what kind of thing is waiting, how much
+of it, and the call that opens each kind — most urgent first, and only kinds
+that actually have something.
 
-`GET /x/inbox` is the wider answer to "what is on my plate": it spans all
-projects and every item carries `whatIsAsked`, written for you. But it mixes
-weights — "someone closed their own task" sits next to "a person asked me a
-question", and the second drowns in the first. That has already cost real
-time: a question left in a comment took three separate calls to find, because
-the general feed did not surface it.
+```
+branches: [{ kind: "mentions", count: 3, next: "GET /x/mentions" }, ...]
+```
+
+Read those counts before going anywhere. A branch that is not listed has
+nothing in it, and four calls coming back empty is exactly the searching this
+replaced. There used to be two entry points saying opposite things about which
+came first — a question left in a comment took three separate calls to find.
+
+`kind: "answers"` means someone replied inside a task's checklist. Those
+replies surface nowhere else: `GET /x/tasks/<id>` carries
+`checklist: {total, done, answered}`, and `answered` above `done` means
+questions were answered while the boxes stayed open. Read them with
+`chatick_checklist` (or `GET /x/tasks/<id>/checklist`) — a checklist item is
+often a question, and the answer lives in its note, not in the comments.
+
+`items` carries the newest in full, each with `whatIsAsked` — one sentence
+written for you saying what the person is actually expected to do.
 
 Both accept `?since=<ISO>` — ask for what is new since a moment you already
 saw, instead of pulling the last thirty and eyeballing them.
@@ -806,6 +1000,9 @@ Then, for a piece of work:
 0. **Once per session:** confirm the skill is current (§2) and note the
    project's language (§1.5). Both take one call and both go stale silently —
    nothing later in this list will remind you.
+0.5. **Read the work log** — `GET /x/worklog`, and read `latestOwn` (§9.9).
+   Where this person stopped last time, in their own words. Skip it and you
+   start blind on work that was already half explained.
 1. **Task first** — open the one you were given, or create it (§4).
 2. **Read its comments and look at its files** — the description is what was
    asked, the comments are what was decided since, and the screenshot is often
@@ -821,6 +1018,11 @@ Then, for a piece of work:
    and who you granted access to. In the project's language (§1.5), even when
    the conversation with you is in another.
 10. **`done` or `review`** — and never without that comment.
+11. **Work log entry** — `POST /x/worklog` (§9.9). Three or four lines: what
+    changed, where it stopped, what is next. It saves as a private draft, so
+    write the honest state. This is the step that makes the next session start
+    informed instead of blind, and it is the one easiest to skip — the work
+    feels finished without it.
 
 When you are done for good: `POST /x/disconnect` closes the tunnel.
 

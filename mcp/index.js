@@ -105,11 +105,12 @@ server.registerTool('chatick_disconnect', { title: 'Forget the stored access', d
 // --- Что на мне --------------------------------------------------------------
 server.registerTool('chatick_mentions', {
     title: 'Where I was asked personally',
-    description: 'Only the things addressed to this person directly — mentions in comments, chat and notes, plus tasks assigned ' +
-        'to them. CHECK THIS FIRST, before chatick_inbox: "someone closed their own task" and "a person asked me a ' +
-        'question and is waiting" carry different weight, and in one shared list the second drowns in the first. ' +
-        'Every item carries a ready url. Once you have handled one, clear it with chatick_inbox_read — anything you ' +
-        'leave here stays on the person as an unread counter for work you already did.',
+    description: 'The "mentions" branch of chatick_inbox, on its own: things addressed to this person directly — mentions in ' +
+        'comments, chat and notes, plus tasks assigned to them. These are the ones with someone waiting on the other ' +
+        'end, so they are worth reading in full. Start at chatick_inbox anyway — its branch counts tell you whether ' +
+        'there is anything here before you ask. Every item carries a ready url. Once you have handled one, clear it ' +
+        'with chatick_inbox_read — anything you leave here stays on the person as an unread counter for work you ' +
+        'already did.',
     inputSchema: {
         unread: z.boolean().optional().describe('Only unanswered ones (default true)'),
         since: z.string().optional().describe('ISO timestamp — only what came after it'),
@@ -124,9 +125,12 @@ server.registerTool('chatick_mentions', {
 });
 server.registerTool('chatick_inbox', {
     title: 'What concerns me right now',
-    description: 'Everything waiting for this person, across every project. Each item carries whatIsAsked — one sentence written ' +
-        'for you, and a ready url. Start here for "what is on my plate" rather than listing tasks project by project — ' +
-        'but for "did anyone ask ME something" use chatick_mentions, which is a much shorter list. ' +
+    description: 'THE entry point for "what is waiting for me", "did anyone answer me", "anything new" — one call, every ' +
+        'project. Do not go looking anywhere else first. The answer opens with "branches": what kind of thing is ' +
+        'waiting, how much of it, and the call that opens each kind — most urgent first, and only kinds that ' +
+        'actually have something. Open a branch only when its count says there is something in it. ' +
+        'branch "answers" means someone replied inside a task checklist — those replies surface nowhere else. ' +
+        '"items" carries the newest in full: whatIsAsked is one sentence saying what the person is expected to do. ' +
         'Pass since to ask only for what arrived after a moment you already saw. ' +
         'Clear whatever you handle with chatick_inbox_read, or the person is left with a counter for finished work.',
     inputSchema: { since: z.string().optional().describe('ISO timestamp — only what came after it') },
@@ -308,6 +312,164 @@ server.registerTool('chatick_members', {
         return fail(e);
     }
 });
+server.registerTool('chatick_member_add', {
+    title: 'Add someone to the project',
+    description: 'Adds a person to the project. Pass userId for someone already in the company — take it from ' +
+        'chatick_members on another project, never invent one. Pass email instead to invite someone from ' +
+        'outside: they get one invitation that puts them in the company AND this project, so nobody has to ' +
+        'be added twice. Inviting from outside needs a company admin.',
+    inputSchema: {
+        project: z.string().describe('Project id'),
+        userId: z.string().optional().describe('Existing company member'),
+        email: z.string().optional().describe('Invite someone who is not in the company yet'),
+        role: z.enum(['admin', 'member']).optional().describe('Role in the project; defaults to member'),
+        companyRole: z
+            .enum(['admin', 'manager', 'member'])
+            .optional()
+            .describe('Role in the company for an invited person; defaults to member'),
+    },
+}, async ({ project, userId, email, role, companyRole }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'POST', '/members', { userId, email, role, companyRole }));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+/**
+ * Домены прав. Дубль списка из PERMISSION_DOMAINS (apps/api/routes/projects.ts):
+ * mcp — отдельный пакет и импортировать оттуда не может.
+ *
+ * За расхождением следит member-role-domains.test.ts: домен, добавленный на
+ * сервере и забытый здесь, роняет тест. Без этого сторожа повторилась бы уже
+ * случившаяся история с releases — поле молча выбрасывалось, ручка отвечала
+ * ok, а уровень не менялся.
+ */
+const PERMISSION_DOMAINS = ['tasks', 'files', 'resources', 'documents', 'releases'];
+const levelEnum = z.enum(['none', 'read', 'write', 'crud']);
+server.registerTool('chatick_member_role', {
+    title: 'Change what someone may do',
+    description: 'Changes a project role, per-area access levels, job title and area of responsibility. ' +
+        'Pass only what changes — everything omitted stays as it was. ' +
+        'Levels per area: none (does not even see the tab) < read < write (create and edit) < crud (also delete). ' +
+        'CHANGING role RESETS every level to that role\'s defaults, so pass permissions in the SAME call to keep ' +
+        'exceptions — a separate later call would be overwritten. Current values come from chatick_members. ' +
+        'The project owner cannot be changed — every project has exactly one, and in many of them they are the ' +
+        'only person who can hand rights back.',
+    inputSchema: {
+        project: z.string().describe('Project id'),
+        userId: z.string().describe('Who to change — id from chatick_members'),
+        role: z.enum(['admin', 'member']).optional().describe('New role in the project; resets levels to its defaults'),
+        permissions: z
+            .object(Object.fromEntries(PERMISSION_DOMAINS.map((d) => [d, levelEnum.optional()])))
+            .optional()
+            .describe('Access level per area; omitted areas keep their level'),
+        jobTitle: z.string().optional().describe('Job title in this project; empty string falls back to the company one'),
+        responsibility: z
+            .string()
+            .optional()
+            .describe('What this person answers for here; empty string falls back to the company one'),
+    },
+}, async ({ project, userId, role, permissions, jobTitle, responsibility }) => {
+    // Пустой вызов сервер отвергает ошибкой «Nothing to change» — не тратим
+    // на него поход по сети и говорим то же самое сразу.
+    if (role === undefined && !permissions && jobTitle === undefined && responsibility === undefined) {
+        return fail(new Error('Nothing to change: pass role, permissions, jobTitle or responsibility'));
+    }
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'PATCH', `/members/${userId}`, {
+            role,
+            permissions,
+            jobTitle,
+            responsibility,
+        }));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_member_remove', {
+    title: 'Remove someone from the project',
+    description: 'Takes a person out of THIS project. They stay in the company — leaving it is a decision of another ' +
+        'level and is not done from here. The owner cannot be removed. Ask the human first: losing access ' +
+        'mid-work is disruptive, and putting someone back does not restore what they were doing.',
+    inputSchema: {
+        project: z.string().describe('Project id'),
+        userId: z.string().describe('Who to remove — id from chatick_members'),
+    },
+}, async ({ project, userId }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'DELETE', `/members/${userId}`));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+/**
+ * Роль и должность НА УРОВНЕ КОМПАНИИ.
+ *
+ * Инструментов было два — оба проектные. Просьба «расставь роли всем: Таль —
+ * CEO, Ханан — QA» выполнялась по одному проекту за раз или не выполнялась
+ * вовсе, хотя должность по природе общая: человек бэкендер и здесь, и там.
+ */
+server.registerTool('chatick_company_members', {
+    title: 'Who is in the company',
+    description: 'Everyone in the company with their COMPANY-wide role and job title. Different from chatick_members, which is ' +
+        'the team of one project. Job titles live at company level and every project inherits them, so "who is our QA" ' +
+        'is answered here.',
+    inputSchema: {
+        project: z.string().optional().describe('Any project of the company; needed on a project-scoped connection'),
+    },
+}, async ({ project }) => {
+    try {
+        const scope = await need();
+        return json(await call({ ...scope, projectId: project ?? scope.projectId }, 'GET', '/company/members'));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_company_member_role', {
+    title: 'Set a company-wide role or job title',
+    description: 'Changes what someone is IN THE COMPANY: job title, area of responsibility, and role. Pass only what changes. ' +
+        'jobTitle set here is inherited by every project that has not set its own — this is the one to use when asked ' +
+        'to give people titles like CEO, PM, QA or Developer. ' +
+        'CAUTION with role: "manager" and "admin" can see EVERY project of the company, including ones the person was ' +
+        'never added to. Job titles describe, roles grant — ask the human before raising one. Requires company admin.',
+    inputSchema: {
+        userId: z.string().describe('Who to change — id from chatick_company_members'),
+        jobTitle: z.string().optional().describe('CEO, PM, QA, Backend developer — inherited by all projects'),
+        responsibility: z.string().optional().describe('What this person answers for across the company'),
+        role: z
+            .enum(['admin', 'manager', 'member'])
+            .optional()
+            .describe('Company role. admin/manager see every project — confirm with the human first'),
+        project: z.string().optional().describe('Any project of the company; needed on a project-scoped connection'),
+    },
+}, async ({ userId, jobTitle, responsibility, role, project }) => {
+    if (jobTitle === undefined && responsibility === undefined && role === undefined) {
+        return fail(new Error('Nothing to change: pass jobTitle, responsibility or role'));
+    }
+    try {
+        const scope = await need();
+        return json(await call({ ...scope, projectId: project ?? scope.projectId }, 'PATCH', `/company/members/${userId}`, {
+            jobTitle,
+            responsibility,
+            role,
+        }));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_members_available', { title: 'Who could be added', description: 'People in the company who are not in this project yet.', inputSchema: { project: z.string().describe('Project id') } }, async ({ project }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'GET', '/members/available'));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
 // --- Задачи ------------------------------------------------------------------
 server.registerTool('chatick_tasks', {
     title: 'List tasks',
@@ -353,7 +515,10 @@ server.registerTool('chatick_task_by_link', {
 server.registerTool('chatick_task', {
     title: 'Read one task',
     description: 'A task with its description, attachments and dependency counts. Accepts the number ("TASK-81") or the id. ' +
-        'Includes "shortUrl" — the link to give a person when they ask where the task is.',
+        'Includes "shortUrl" — the link to give a person when they ask where the task is. ' +
+        'When the task has a checklist you also get "checklist": {total, done, answered}. "answered" above "done" ' +
+        'means questions in it were answered but the boxes are still open — read those answers with ' +
+        'chatick_checklist; they appear nowhere else.',
     inputSchema: { project: z.string(), task: z.string().describe('TASK-81 or the id') },
 }, async ({ project, task }) => {
     try {
@@ -466,7 +631,330 @@ server.registerTool('chatick_comments', {
         return fail(e);
     }
 });
+server.registerTool('chatick_announce', {
+    title: 'Tell the company something',
+    description: 'Sends an announcement that is NOT about a task: "we are off tomorrow", "the policy changed", "the server ' +
+        'moves on Saturday". Reaches everyone in the company by default; pass project to narrow it to one team, or ' +
+        'users to name people. ' +
+        'ASK THE HUMAN BEFORE SENDING. This interrupts everybody and cannot be turned off by the people receiving ' +
+        'it — that is the point of an announcement, and the reason not to send one on your own judgement. ' +
+        'email: true also sends mail; use it when waiting for someone to open the app is too slow. ' +
+        'Company admin only.',
+    inputSchema: {
+        title: z.string().describe('One line saying what happened — this is what people see first'),
+        body: z.string().optional().describe('Details, if a line is not enough. Markdown.'),
+        project: z
+            .string()
+            .optional()
+            .describe('Narrow to one project team. On a master connection also tells which company — required there'),
+        users: z.array(z.string()).optional().describe('Narrow to named people — ids from chatick_company_members'),
+        email: z.boolean().optional().describe('Also send mail. For things that cannot wait until they open the app'),
+    },
+}, async ({ project, ...body }) => {
+    try {
+        const scope = await need();
+        // project служит двум целям сразу: сузить адресатов до команды проекта
+        // И указать компанию. На мастер-доступе туннель охватывает несколько
+        // компаний, и без этого объявление отправить было нельзя вовсе —
+        // сервер отвечал «pass ?project=», а инструмент этот параметр не
+        // пробрасывал.
+        return json(await call({ ...scope, projectId: project ?? scope.projectId }, 'POST', '/announce', project ? { ...body, project } : body));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+/**
+ * «Где та таска, где я писал» — вопрос, на который до этого ответить было
+ * нечем: chatick_tasks ищет внутри одного проекта, а люди состоят в 8-20.
+ */
+server.registerTool('chatick_search_tasks', {
+    title: 'Find a task by what it was about',
+    description: 'Finds a task ACROSS EVERY PROJECT this person is in, by MEANING rather than words: "payment fails" finds a ' +
+        'Hebrew task about a broken payment iframe with no shared word. ' +
+        'Comments are indexed together with their task, so "where did we discuss X", "which task was that in", ' +
+        '"I wrote about it somewhere" land on the task holding the discussion — that is what this is for. ' +
+        'Use chatick_tasks instead when you already know the project and want to list or filter its tasks; use this ' +
+        'when the project is exactly what you are trying to remember. Items found by meaning carry ' +
+        'matchedBy="meaning" — they may share no word with your query.',
+    inputSchema: {
+        query: z.string().describe('Ask in plain words — do not guess the exact wording someone used'),
+        project: z.string().optional().describe('Narrow to one project; omit to search all of them'),
+        limit: z.number().optional(),
+    },
+}, async ({ query, project, limit }) => {
+    try {
+        const scope = await need();
+        return json(await call(scope, 'GET', '/search/tasks', undefined, {
+            q: query,
+            project,
+            limit: limit ? String(limit) : undefined,
+        }));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+// --- Журнал проекта / база знаний ---------------------------------------------
+/**
+ * Заметок в мосту шесть ручек, а инструментов не было ни одного.
+ *
+ * Ровно та же история, что вчера с чек-листом: ручка есть, добраться до неё
+ * можно только сырым curl, зная о ней заранее. База знаний, в которую нечем
+ * писать и нечего читать, не наполняется — что и подтвердила живая база: на
+ * весь Chatick одна заметка.
+ */
+server.registerTool('chatick_notes', {
+    title: 'Search the project journal',
+    description: 'Solutions, problems, decisions, requirements, gotchas — what the team already learned. ' +
+        'SEARCH UNDERSTANDS MEANING, not just words: "payment fails" finds "Cardcom rejects foreign cards" with ' +
+        'no shared word, and it works the same in Hebrew. Ask in your own words instead of guessing the exact ' +
+        'wording someone used; items found that way are marked matchedBy="meaning". ' +
+        'LOOK HERE BEFORE debugging something — it may already have been solved, in this project or another. ' +
+        'Searches the WHOLE COMPANY by default: an answer found in a neighbouring project is exactly the point. ' +
+        'scope="project" narrows to the current one, and you rarely want that.',
+    inputSchema: {
+        project: z.string().describe('Project id'),
+        query: z.string().optional().describe('Ask in plain words — meaning is matched, not substrings'),
+        type: z.string().optional().describe('Comma separated: bug, requirement, attention, solution, problem, decision, contradiction, mismatch, gap, reminder, business, note'),
+        tag: z.string().optional().describe('Comma separated tags, AND condition'),
+        scope: z.enum(['project', 'company']).optional().describe('Default: whole company. "project" narrows to the current one'),
+        limit: z.number().optional(),
+    },
+}, async ({ project, ...q }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'GET', '/notes', undefined, {
+            q: q.query,
+            type: q.type,
+            tag: q.tag,
+            scope: q.scope,
+            limit: q.limit ? String(q.limit) : undefined,
+        }));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_note', {
+    title: 'Read one journal entry',
+    description: 'Full text of one entry, plus the chat messages quoted as evidence. The search list gives only a ' +
+        '200-character preview — read the entry itself before acting on it.',
+    inputSchema: { project: z.string().describe('Project id'), id: z.string().describe('Note id from chatick_notes') },
+}, async ({ project, id }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'GET', `/notes/${encodeURIComponent(id)}`));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_note_save', {
+    title: 'Write to the project journal',
+    description: 'Record what was learned, ON BEHALF OF the human. Write an entry when you solved something non-obvious, ' +
+        'hit a requirement worth remembering, or found a trap the next person will step into. A fix that lives ' +
+        'only in this conversation is lost the moment it ends. ' +
+        'scope="company" for anything reusable beyond this project — technical answers, gotchas, rules. That is ' +
+        'what makes the next project cheaper. ' +
+        'Tags matter: they narrow a search that meaning alone cannot ("cardcom", "sms", "ios"). ' +
+        'Body is HTML, like documents — not markdown.',
+    inputSchema: {
+        project: z.string().describe('Project id'),
+        title: z.string().describe('Short — what this is about'),
+        body: z.string().describe('HTML'),
+        type: z
+            .enum(['bug', 'requirement', 'attention', 'solution', 'problem', 'decision', 'contradiction', 'mismatch', 'gap', 'reminder', 'business', 'note'])
+            .optional()
+            .describe('solution = a problem AND its fix, the reusable kind; bug = broken and not yet fixed; requirement = a rule to follow; attention = a trap to avoid'),
+        tags: z.array(z.string()).optional(),
+        scope: z.enum(['project', 'company']).optional().describe('company = findable from every project'),
+    },
+}, async ({ project, ...body }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'POST', '/notes', body));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_note_update', {
+    title: 'Correct a journal entry',
+    description: 'Fix or extend an entry that turned out incomplete or wrong. Pass only what changes. ' +
+        'Prefer correcting an existing entry over writing a second one about the same thing: two entries with ' +
+        'different answers to the same question are worse than one outdated.',
+    inputSchema: {
+        project: z.string().describe('Project id'),
+        id: z.string().describe('Note id'),
+        title: z.string().optional(),
+        body: z.string().optional().describe('HTML'),
+        type: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        scope: z.enum(['project', 'company']).optional(),
+    },
+}, async ({ project, id, ...body }) => {
+    if (!Object.values(body).some((v) => v !== undefined)) {
+        return fail(new Error('Nothing to change: pass title, body, type, tags or scope'));
+    }
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'PATCH', `/notes/${encodeURIComponent(id)}`, body));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+// --- Журнал работы -----------------------------------------------------------
+/**
+ * Журнал работы: где человек остановился.
+ *
+ * Отличается от заметок (chatick_notes) вопросом, на который отвечает.
+ * Заметка — знание, живущее годами: «Cardcom не берёт иностранные карты».
+ * Запись журнала — состояние работы: «доделал вебхук, встал на ретраях».
+ * Первое ищут, второе читают подряд и по датам.
+ */
+server.registerTool('chatick_worklog', {
+    title: 'Read the work log',
+    description: 'What people did in this project and where they stopped — written by them, in their own words. ' +
+        'CALL THIS FIRST when picking up work you did not just finish: "latestOwn" in the reply is exactly where ' +
+        'this person left off, so read it before asking them what they were doing. Reconstructing that from ' +
+        'tasks and commits is guessing, and making them repeat it wastes their time. ' +
+        'Different from chatick_notes: a note is knowledge that lasts ("Cardcom rejects foreign cards"), ' +
+        'a log entry is the state of work ("finished the webhook, stuck on retries"). ' +
+        'Entries with status="draft" are the asking person\'s OWN unpublished notes — nobody else can see them, ' +
+        'not even project admins, so never quote a draft into the chat. Published entries are final: they can ' +
+        'be added to, never edited. Project admins see everyone; members see only themselves.',
+    inputSchema: {
+        project: z.string().describe('Project id'),
+        authorId: z.string().optional().describe('Filter by person — admins only; members always see just themselves'),
+        from: z.string().optional().describe('ISO date — entries from this date'),
+        to: z.string().optional().describe('ISO date — entries up to this date'),
+        limit: z.number().optional(),
+    },
+}, async ({ project, ...q }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'GET', '/worklog', undefined, {
+            authorId: q.authorId,
+            from: q.from,
+            to: q.to,
+            limit: q.limit ? String(q.limit) : undefined,
+        }));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_worklog_write', {
+    title: 'Write to the work log',
+    description: 'Record where the work stands, ON BEHALF OF the human. Saves as a DRAFT: only they can see it until ' +
+        'they publish, so writing here is safe even when the state is messy or half-thought. ' +
+        'WRITE ONE AT THE END OF EVERY WORKING SESSION — what got done, what is half-finished, what to pick up ' +
+        'next. This is what makes the next session start informed instead of blind. ' +
+        'KEEP IT SHORT: a few lines of fact, the way you would leave a note for yourself. What changed, where it ' +
+        'stopped, what is next. No retelling of the conversation, no summary of code you just wrote, no ' +
+        'restating what the task already says — a long entry does not get read, and the whole point is that ' +
+        'the next person, or you tomorrow, takes it in at a glance. ' +
+        'One open draft per person per project: if one exists this returns its id, and you extend it with ' +
+        'chatick_worklog_update instead of starting a second. ' +
+        'Body is HTML, like notes and documents — not markdown.',
+    inputSchema: {
+        project: z.string().describe('Project id'),
+        body: z.string().describe('HTML — what was done, where it stopped, what is next'),
+        taskId: z.string().optional().describe('Optional: the task this is about'),
+    },
+}, async ({ project, ...body }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'POST', '/worklog', body));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_worklog_update', {
+    title: 'Edit the open draft',
+    description: 'Extend or rewrite the person\'s own UNPUBLISHED draft, and attach or detach the task it is about. ' +
+        'Published entries cannot be edited by anyone, ever — the log only moves forward. If something published ' +
+        'turned out wrong, write a new entry saying so; do not try to correct the old one. ' +
+        'Linking a task is optional and often right to skip: "spent the morning on the staging environment" ' +
+        'belongs to no task. Link when the entry is about one task, so it shows up next to that work.',
+    inputSchema: {
+        project: z.string().describe('Project id'),
+        id: z.string().describe('Entry id from chatick_worklog'),
+        body: z.string().optional().describe('HTML — replaces the current text, so include what you keep'),
+        taskId: z
+            .string()
+            .optional()
+            .describe('Task id to link this entry to. Pass an empty string "" to unlink it and leave the entry standing alone'),
+    },
+}, async ({ project, id, ...body }) => {
+    if (!Object.values(body).some((v) => v !== undefined)) {
+        return fail(new Error('Nothing to change: pass body or taskId'));
+    }
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'PATCH', `/worklog/${encodeURIComponent(id)}`, body));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_worklog_publish', {
+    title: 'Publish a work log draft',
+    description: 'Make the draft visible to the project. IRREVERSIBLE: a published entry cannot be edited or unpublished, ' +
+        'only deleted. Ask the person before publishing — a draft is theirs, and they may be keeping it private ' +
+        'on purpose.',
+    inputSchema: {
+        project: z.string().describe('Project id'),
+        id: z.string().describe('Draft id from chatick_worklog'),
+    },
+}, async ({ project, id }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'POST', `/worklog/${encodeURIComponent(id)}/publish`));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
+server.registerTool('chatick_worklog_delete', {
+    title: 'Discard a work log draft',
+    description: 'Throw away the person\'s own unpublished draft — the "no, scrap that" case, usually for a draft you ' +
+        'just wrote for them. ' +
+        'DRAFTS ONLY: published entries are project history and the server refuses to delete them here, even ' +
+        'though the person can delete their own in the app. Do not offer to work around that. ' +
+        'Discarding loses the text: if there is anything worth keeping, rewrite the draft with ' +
+        'chatick_worklog_update instead.',
+    inputSchema: {
+        project: z.string().describe('Project id'),
+        id: z.string().describe('Draft id from chatick_worklog'),
+    },
+}, async ({ project, id }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'DELETE', `/worklog/${encodeURIComponent(id)}`));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
 // --- Чек-лист ----------------------------------------------------------------
+/**
+ * Читать чек-лист было НЕЧЕМ.
+ *
+ * Инструменты умели добавить пункт и отметить его, а прочитать — нет. Ручка
+ * существовала, но добраться до неё можно было только сырым curl, зная о ней
+ * заранее. Из-за этого ответы под пунктами оказались недостижимы: человек
+ * ответил на десять вопросов, и достать их было не через что. Ему пришлось
+ * отдельно писать комментарий «я ответил в пунктах».
+ */
+server.registerTool('chatick_checklist', {
+    title: 'Read a task checklist',
+    description: 'The items of a task checklist WITH the answers written under them. A checklist item is often a question — ' +
+        '"which key do we sign with?" — and the answer lives in its note, not in the comments. chatick_task reports ' +
+        'the counts (total, done, answered); when "answered" is above zero, the answers are here and nowhere else.',
+    inputSchema: { project: z.string().describe('Project id'), task: z.string().describe('Task id or number') },
+}, async ({ project, task }) => {
+    try {
+        return json(await call({ ...(await need()), projectId: project }, 'GET', `/tasks/${encodeURIComponent(task)}/checklist`));
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
 server.registerTool('chatick_checklist_add', {
     title: 'Break a task into steps',
     description: 'Adds checklist items. A checklist is a sub-resource: the task must exist first. Tick each item as it is ' +
@@ -867,4 +1355,74 @@ server.registerTool('chatick_report', {
 });
 const transport = new StdioServerTransport();
 await server.connect(transport);
+/**
+ * Открыть страницу Chatick в браузере человека.
+ *
+ * Ассистент часто заканчивает работу словами «вот задача» и ссылкой, которую
+ * человек копирует и вставляет руками. Здесь он открывает её сам.
+ *
+ * Браузер запускается НА ЭТОЙ машине — той, где работает MCP, то есть рядом с
+ * человеком. Открывать сразу в приложении Chatick было бы приятнее, но своего
+ * протокола у него пока нет: это отдельная сборка (см. DEFERRED.md).
+ */
+server.registerTool('chatick_open', {
+    title: 'Open a page in the browser',
+    description: 'Opens a Chatick page on the screen of the person you work with: a task, a document, a project, a ' +
+        'company. Pass a link that came from another tool ("shortUrl", "link") — never one you assembled ' +
+        'yourself, ids are not guessable. Use it when they are about to look at the thing anyway; saying what ' +
+        'you opened is polite, opening five pages in a row is not.',
+    inputSchema: {
+        url: z.string().describe('A chatick.com link taken from another tool reply'),
+    },
+}, async ({ url }) => {
+    try {
+        /**
+         * Только свои адреса.
+         *
+         * Инструмент запускает программу на машине человека по строке, которую
+         * предложила модель. Без проверки достаточно подсунуть ей чужую ссылку
+         * в тексте задачи — и мы откроем что угодно от его имени.
+         */
+        let target;
+        try {
+            target = new URL(url);
+        }
+        catch {
+            return fail(new Error('Not a URL: ' + url));
+        }
+        if (target.protocol !== 'https:' && target.protocol !== 'http:') {
+            return fail(new Error('Only http(s) links can be opened'));
+        }
+        // Точное совпадение домена или его поддомен: проверка через includes
+        // пропустила бы chatick.com.evil.net.
+        const host = target.hostname.toLowerCase();
+        if (host !== 'chatick.com' && !host.endsWith('.chatick.com') && host !== 'localhost') {
+            return fail(new Error('Only chatick.com links can be opened, got: ' + host));
+        }
+        /**
+         * Открываем средствами системы.
+         *
+         * Аргументом, а не строкой команды: адрес приходит извне, и склеивать
+         * его с командой значит отдать кавычки чужому тексту. execFile ничего
+         * не разбирает через оболочку.
+         *
+         * Windows: у start нет исполняемого файла, поэтому там cmd с /c, а
+         * пустые кавычки — заголовок окна, без них start съедает сам адрес.
+         */
+        const { execFile } = await import('node:child_process');
+        await new Promise((resolve, reject) => {
+            const done = (err) => (err ? reject(err) : resolve());
+            if (process.platform === 'win32')
+                execFile('cmd', ['/c', 'start', '', target.href], done);
+            else if (process.platform === 'darwin')
+                execFile('open', [target.href], done);
+            else
+                execFile('xdg-open', [target.href], done);
+        });
+        return json({ opened: target.href });
+    }
+    catch (e) {
+        return fail(e);
+    }
+});
 //# sourceMappingURL=index.js.map

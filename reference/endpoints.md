@@ -179,6 +179,22 @@ POST   /x/notes/:id/task
 DELETE /x/notes/:id
 ```
 
+## Work log
+
+Where each person stopped. Read `latestOwn` when you start, write an entry when
+you stop — every session (§9.9).
+
+```
+GET    /x/worklog?authorId=&from=&to=&limit=   reply opens with latestOwn
+POST   /x/worklog                              {"body","taskId?"} — saves a DRAFT
+PATCH  /x/worklog/:id                          {"body?","taskId?"} — own draft only; taskId:"" unlinks
+POST   /x/worklog/:id/publish                  one-way
+DELETE /x/worklog/:id                          own DRAFTS only
+```
+
+Drafts are visible to their author alone — never quote one into the chat.
+Published entries can be added to, never edited.
+
 ## Resources
 
 ```
