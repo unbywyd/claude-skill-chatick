@@ -1,7 +1,7 @@
 ---
 name: chatick
-description: Work inside a Chatick project — read and create tasks, assign them with an estimate, move them through statuses, tick their checklists, and report every result in task comments. Use when the human asks you to take work from Chatick or put work into it, when you are about to start work that belongs in a project, when a task number like TASK-81 appears, or when they say "поставь задачу", "что на мне", "возьми в работу", "отпишись в задаче", "смени статус".
-when_to_use: Triggers include Chatick, чатик, TASK-<number>, "поставь задачу", "создай задачу", "что мне делать", "что на мне", "возьми в работу", "отпишись в комментарии", "смени статус", "оцени время", "запусти таймер", api.chatick.com, /x/tasks, bridge token, device flow.
+description: Work inside a Chatick project — read and create tasks, assign them with an estimate, move them through statuses, tick their checklists, report every result in task comments, and keep the work log so the next session knows where this one stopped and what was agreed. Use when the human asks you to take work from Chatick or put work into it, when you are about to start work that belongs in a project, when picking work back up after a break, when a task number like TASK-81 appears, or when they say "поставь задачу", "что на мне", "возьми в работу", "отпишись в задаче", "смени статус", "продолжаем", "на чём остановились".
+when_to_use: Triggers include Chatick, чатик, TASK-<number>, "поставь задачу", "создай задачу", "что мне делать", "что на мне", "возьми в работу", "отпишись в комментарии", "смени статус", "оцени время", "запусти таймер", api.chatick.com, /x/tasks, bridge token, device flow. ALSO on picking work back up or closing a piece of it: "продолжаем", "продолжим", "на чём остановились", "что вчера делали", "где мы остановились", "что было сделано", "запиши что сделали", "зафиксируй", work log, журнал работы.
 ---
 
 # Working in Chatick
@@ -663,57 +663,88 @@ whoever wrote it and whenever.
 
 ---
 
-## 9.9. The work log — where you left off, and where you leave it
+## 9.9. The work log — the only memory that survives this conversation
 
-Two calls, and both are obligatory: **read it when you start, write it when you
-stop.** Not when it feels worth it — every session. This is the only thing that
-carries state across the gap between one session and the next.
+**Read it when you start. Write to it every time something is finished.**
+
+This is not bookkeeping. When this conversation ends, everything in it is gone:
+what you tried, what failed, what the human corrected, what you agreed to do
+differently. The next session — yours or someone else's — starts blind and asks
+the human to repeat themselves. The work log is the only place that survives.
 
 ```bash
 # starting: where did this person leave off
-curl -s "https://api.chatick.com/x/worklog?project=$P" \
-  -H "authorization: Bearer $TOKEN"
+curl -s "https://api.chatick.com/x/worklog?project=$P"   -H "authorization: Bearer $TOKEN"
 ```
 
-The reply opens with **`latestOwn`** — their most recent entry, their open
-draft if they have one. Read it before you ask them anything. They already
-wrote down where they stopped; asking them to repeat it, or rebuilding it from
-tasks and commits, is worse than reading two lines.
+The reply opens with **`latestOwn`** — their most recent entry, their open draft
+if they have one. Read it before you ask them anything.
+
+### When to write
+
+**Every time a piece of work is finished** — not "at the end of the session".
+A session has no end: the conversation just continues, and "later" never
+arrives. A finished piece does have a moment, and that moment is your cue:
+
+- committed, pushed, or deployed;
+- a decision was made — *especially* one that reverses a plan;
+- the human corrected your direction;
+- something turned out not to work, and you moved another way;
+- a question was answered that you would otherwise ask again tomorrow.
+
+One open draft per person per project: `POST` while one exists returns 409 with
+its id, and you extend that draft (`PATCH /x/worklog/<id>`) instead of starting
+a second. So over a working day the entry GROWS — append each finished piece to
+it as it lands.
 
 ```bash
-# stopping: what you did and where it stands
-curl -s -X POST https://api.chatick.com/x/worklog \
-  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-  -d '{"body":"<p>TASK-81: вебхук готов, ретраи не доделаны — падают на 429. Дальше: идемпотентный ключ.</p>","taskId":"<id>"}'
+curl -s -X POST https://api.chatick.com/x/worklog   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'   -d '{"body":"<p>Вебхук готов, ретраи падают на 429 — дальше идемпотентный ключ.</p>"}'
 ```
 
-It saves as a **draft**: nobody but them can see it, not even project admins.
-So there is nothing to be careful about — write the messy state, that is what
-it is for. `POST /x/worklog/<id>/publish` makes it project history, and that is
-one-way: published entries can never be edited, only added to.
+It saves as a **draft**: only that person can see it, not even project admins.
+Nothing to be careful about — write the messy state, that is what it is for.
+`POST /x/worklog/<id>/publish` makes it project history, one-way.
 
-**Short. Facts only.** Three or four lines: what changed, where it stopped,
-what is next. Not a retelling of the conversation, not a summary of the code
-you just wrote, not a restatement of what the task already says. A long entry
-is an entry nobody reads, and the whole value is that tomorrow it is taken in
-at a glance. If it needs a heading, it is too long.
+### What to write
 
-One open draft per person per project. If one exists, `POST` returns 409 with
-its id — extend that one (`PATCH /x/worklog/<id>`), do not start a second.
+Two things, and the second is the one that gets lost:
 
-Attach `taskId` when the entry is about a single task. Leave it off when it is
-not: "утро ушло на стейджинг" belongs to no task, and forcing one on it makes
-both harder to find later. `PATCH` with `"taskId": ""` unlinks.
+**State.** What changed, what is half-done, what is next.
 
-**This is not the knowledge base** (§9.7). A note is knowledge that outlives
-the month ("Cardcom не берёт иностранные карты"); a log entry is the state of
-work ("вебхук готов, встал на ретраях"). Notes are looked up years later; log
-entries are read tomorrow, by the next person to touch this. Putting one in the
-other buries both.
+**Decisions — what was agreed and WHY.** "Период не привязываем к просрочке: у
+неё нет прошлого". "Черновики в вектор не идут — иначе чужой ассистент
+процитирует". This is the part no commit and no task carries. Six weeks later
+somebody undoes the decision because the reason was never written down.
 
-**Never quote someone's draft into the chat**, including inside a summary. A
-draft is private by design, and that privacy is the only reason anything
-honest gets written in it.
+**Facts and movement. No water.** Write what happened and what it means going
+forward — not a retelling of the conversation, not a summary of the code you
+just wrote, not a restatement of what the task already says.
+
+```
+Хорошо:
+  Полоса активности теперь от первого дня компании, не жёсткие 90:
+  на 90 две трети клеток были пустыми, читалось как «не работал».
+  Порядок проектов учитывает просрочку+блокеры. Дальше: удалить ветку?
+
+Плохо:
+  Сегодня мы много работали над обзором компании. Я внёс ряд правок в
+  OverviewTab.tsx, добавил компонент PeopleStats и обновил переводы...
+```
+
+The test: would this help someone who has never seen this conversation? If a
+line only makes sense to whoever was in the room, it is water — cut it.
+
+Attach `taskId` when the entry is about a single task; leave it off when it is
+not — "утро ушло на стейджинг" belongs to no task.
+
+**This is not the knowledge base** (§9.7). A note is knowledge that outlives the
+month ("Cardcom не берёт иностранные карты"); a log entry is the state and the
+reasoning of work in progress. Notes are looked up years later; log entries are
+read tomorrow.
+
+**Never quote someone else's draft into the chat**, including inside a summary.
+Drafts are private by design — that privacy is the only reason anything honest
+gets written in them.
 
 ---
 
@@ -1018,11 +1049,12 @@ Then, for a piece of work:
    and who you granted access to. In the project's language (§1.5), even when
    the conversation with you is in another.
 10. **`done` or `review`** — and never without that comment.
-11. **Work log entry** — `POST /x/worklog` (§9.9). Three or four lines: what
-    changed, where it stopped, what is next. It saves as a private draft, so
-    write the honest state. This is the step that makes the next session start
-    informed instead of blind, and it is the one easiest to skip — the work
-    feels finished without it.
+11. **Work log** — `POST /x/worklog`, or `PATCH` if a draft is open (§9.9).
+    Not once at the end: **after every finished piece**, as it lands. What
+    changed, and any decision made along the way with its reason. Facts and
+    movement, no water. This is the step that makes the next session start
+    informed instead of blind, and the one easiest to skip — the work feels
+    finished without it, and by then the reasoning is already gone.
 
 When you are done for good: `POST /x/disconnect` closes the tunnel.
 
