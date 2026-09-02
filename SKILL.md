@@ -628,7 +628,14 @@ it ends.
 | `note` | anything else |
 
 Tags matter: they narrow a search that meaning alone cannot — `cardcom`,
-`sms`, `ios`. Body is HTML, like documents.
+`sms`, `ios`. Body takes markdown or HTML — both are converted server-side, so
+write whichever is natural.
+
+**Never escape the markup you send.** Write `<p>text</p>`, never
+`&lt;p&gt;text&lt;/p&gt;`, and never wrap the body in a fenced code block. You
+are writing markup here, not showing it. Five knowledge-base entries were saved
+escaped, and every reader — the editor included — showed the raw tags as text.
+The write returns 201 either way, so nothing warns you.
 
 The project is an optional **origin mark**, not a boundary: it says where this
 came up, and it does not hide the entry from anyone else in the company.
