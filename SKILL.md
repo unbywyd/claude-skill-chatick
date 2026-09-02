@@ -1142,6 +1142,27 @@ production` (`eas build --profile`). Not the same as the stage: the stage says
 where the build got to, the profile says how it was made. The same production
 build passes through TestFlight and then the store.
 
+**Something missing on a version? Fix it — never create a second one.**
+
+```bash
+curl -s -X PATCH "https://api.chatick.com/x/releases/<id>?project=$P" \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"buildPageUrl":"https://expo.dev/accounts/.../builds/<uuid>"}'
+```
+
+Takes `version`, `appName`, `referenceUrl`, `buildPageUrl`, `notes`,
+`buildProfile`. `buildPageUrl` is the page at the provider — the one with the
+logs; `referenceUrl` is the artifact people download. The EAS webhook normally
+fills both, so this is what you reach for when the webhook did not arrive.
+
+Two rows for one build is the failure to avoid: the webhook later updates only
+one of them, and the other stays dead — green tick in Expo, nothing here. It
+already happened on WhatIDog 1.0.5.
+
+The stage is **not** editable here: it has its own endpoint, and that one
+demands a comment. That is deliberate — otherwise a stage could be moved with
+no explanation, and the history would stop answering "why".
+
 **Moving a stage requires a comment, and this is the point of the feature:**
 
 ```bash

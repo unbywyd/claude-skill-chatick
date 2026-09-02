@@ -47,7 +47,12 @@ my answer", and the second gets lost in the first.
 GET    /x/releases                             list + "live" + stage ladders
 GET    /x/releases/:id                         one version, its history and tasks
 POST   /x/releases/request                     {"version","buildType","assignee?","comment?","buildProfile?","estimateMinutes?"}
-POST   /x/releases                             {"version","buildType","status?","referenceUrl?","notes?","comment?","buildProfile?"}
+POST   /x/releases                             {"version","buildType","status?","referenceUrl?","buildPageUrl?","notes?","comment?","buildProfile?"}
+PATCH  /x/releases/:id                         {"version?","appName?","referenceUrl?","buildPageUrl?","notes?","buildProfile?"}
+                                               Fix an existing version instead of creating a second one for the
+                                               same build: two rows split its history, and the EAS webhook then
+                                               updates only one of them. buildPageUrl is the page with the logs,
+                                               referenceUrl is the artifact people download.
 POST   /x/releases/:id/stage                   {"status","comment"}  comment REQUIRED
 ```
 
