@@ -265,8 +265,8 @@ POST   /x/db/:id/read                          {"sql":"select ...", "limit":100}
 ```
 GET    /x/documents
 GET    /x/documents/:id
-POST   /x/documents                            {"title","content"}   markdown or HTML
-                                               Never escape the tags: send <p>x</p>, not &lt;p&gt;.
+POST   /x/documents                            {"title","content"}   content is markdown
+                                               Write `## Heading`, not <h2>. Never send escaped HTML.
 PATCH  /x/documents/:id                        {"title?","content?"}
 POST   /x/documents/:id/append                 {"content"}       safe for long docs
 GET    /x/documents/:id/versions

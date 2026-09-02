@@ -628,14 +628,17 @@ it ends.
 | `note` | anything else |
 
 Tags matter: they narrow a search that meaning alone cannot — `cardcom`,
-`sms`, `ios`. Body takes markdown or HTML — both are converted server-side, so
-write whichever is natural.
+`sms`, `ios`.
 
-**Never escape the markup you send.** Write `<p>text</p>`, never
-`&lt;p&gt;text&lt;/p&gt;`, and never wrap the body in a fenced code block. You
-are writing markup here, not showing it. Five knowledge-base entries were saved
-escaped, and every reader — the editor included — showed the raw tags as text.
-The write returns 201 either way, so nothing warns you.
+**Write the body in markdown** — headings, lists, bold, code fences, links,
+tables. It is converted server-side, and a single newline stays a line break.
+
+**Do not send HTML, and never escape it.** Write `## Heading`, not
+`<h2>Heading</h2>`, and least of all `&lt;h2&gt;Heading&lt;/h2&gt;`.
+Hand-written HTML is exactly what went wrong: five knowledge-base entries
+arrived escaped, and every reader — the editor included — showed the raw tags
+as text. Markdown cannot fail that way, because there is nothing to escape. The
+write returns 201 either way, so nothing warns you.
 
 The project is an optional **origin mark**, not a boundary: it says where this
 came up, and it does not hide the entry from anyone else in the company.
