@@ -67,9 +67,15 @@ GET    /x/tasks
 PATCH  /x/tasks/bulk                           {"tasks":["TASK-4","TASK-7"], "set":{...}, "refs":{"TASK-4":"19.1"}}
 DELETE /x/tasks/bulk                           {"tasks":["TASK-4","TASK-7"]}
 GET    /x/tasks/:id
-POST   /x/tasks                                {"title","description?","assignee?","status?","priority?","estimateMinutes?","sprintId?","attachmentIds?","resourceIds?","refs?","links?"}
+POST   /x/tasks                                {"title","assignee","description?","status?","priority?","estimateMinutes?","sprintId?","attachmentIds?","resourceIds?","refs?","links?"}
+                                               assignee is REQUIRED: a task nobody owns never appears in any task list. Ask who should do it.
 PATCH  /x/tasks/:id
 DELETE /x/tasks/:id
+GET    /x/tasks/:id/history                    who created it, assigned it, moved its status — milestones only
+GET    /x/search/tasks?q=…                     find a task across EVERY project, by meaning
+                                               Comments are indexed with their task, so "where did we
+                                               discuss X" lands on the task holding the discussion.
+                                               Items found that way carry matchedBy="meaning".
 POST   /x/tasks/:id/restore
 GET    /x/tasks/:id/blockers
 POST   /x/tasks/:id/blockers                   {"tasks":["TASK-3","TASK-5"], "side":"blockedBy"|"blocking"}
@@ -147,6 +153,11 @@ PATCH  /x/members/:userId
 GET    /x/projects
 POST   /x/projects                             {"name","about?","chatRules?"} — new project
 PATCH  /x/projects/:id                         {"name"?, "about"?, "chatRules"?, "color"?}
+POST   /x/projects/:id/hide                    take it off your own list; ?hide=0 brings it back
+                                               Personal: hiding it changes nothing for anyone else.
+                                               A hidden project returns on its own once something
+                                               unread appears in it.
+POST   /x/projects/:id/leave                   leave the project yourself (the owner cannot)
 ```
 
 ## Project chat

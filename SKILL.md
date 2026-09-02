@@ -661,6 +661,27 @@ knowledge is looked up**. Ask `/x/search/tasks` when the project is what you
 are trying to remember; ask `/x/notes` when you want the answer itself,
 whoever wrote it and whenever.
 
+### "Why was this returned to me?" — read the task's history
+
+```bash
+curl -s "https://api.chatick.com/x/tasks/TASK-24/history?project=$P" \
+  -H "authorization: Bearer $TOKEN"
+```
+
+Who created the task, who assigned it, who moved its status, and when. The task
+object itself does not say — it carries `createdById` and `createdAt`, but not
+what happened after.
+
+**Ask before answering, and do not fill the gap with a guess.** This is not
+hypothetical: a person asked exactly this, the history was unreachable, and the
+answer given was "nobody returned it, it was always yours". It was wrong — the
+PM had returned it in a comment. A confident wrong answer costs more than "let
+me check".
+
+Milestones only: reordering in the list and description edits are left out, or
+the real steps drown in them. Older entries name the field that changed but not
+its new value — say what changed, do not invent what it became.
+
 ---
 
 ## 9.9. The work log — the only memory that survives this conversation
