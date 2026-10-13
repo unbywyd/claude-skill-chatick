@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, chmodSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { apiBase } from './bridge.js';
@@ -193,7 +193,27 @@ export function acceptToken(stored) {
     memory = { token: stored.token, projectId: stored.projectId, kind: kindOf(stored) };
     return memory;
 }
-export function forget() {
+/**
+ * Забыть доступ по-настоящему: закрыть сессию на сервере, стереть файл и
+ * память. Раньше чистилась только память — файл оставался, и следующий же
+ * вызов молча подключался обратно, хотя человек просил «забудь».
+ */
+export async function forget() {
+    const token = memory?.token ?? load()?.token;
     memory = null;
+    try {
+        rmSync(TOKEN_FILE, { force: true });
+    }
+    catch {
+        // Не стёрся — сессия всё равно закрыта ниже, и токен из файла не оживёт.
+    }
+    if (!token)
+        return;
+    try {
+        await fetch(`${apiBase()}/x/disconnect`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+    }
+    catch {
+        // Сервер недоступен — файла и памяти уже нет; сессия истечёт по простою.
+    }
 }
 //# sourceMappingURL=auth.js.map

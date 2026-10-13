@@ -1338,7 +1338,7 @@ Then, for a piece of work:
     finished without it, and by then the reasoning is already gone.
 12. **Clear the inbox** for the tasks you handled.
 
-When you are done for good: `POST /x/disconnect` closes the tunnel.
+When you are done for good — the person hands the machine over or asks to disconnect: `chatick_disconnect` (local program) closes the access on the server and deletes the stored token; over curl, `POST /x/disconnect` closes the tunnel.
 
 ---
 
