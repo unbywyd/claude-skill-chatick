@@ -9,7 +9,10 @@ server. This file exists so you need no network call to answer "is there an
 endpoint for this at all".
 
 Base: `https://api.chatick.com`. Header: `authorization: Bearer <token>`.
-On a company token every request also needs `?project=<id>`.
+On a company or master token every project call also needs `?project=<id>`.
+
+Chatick 2.0: work moves by **handoffs** (`/x/tasks/:id/handoff`) and "what is
+on me" is `/x/ball/mine` — see "The ball" below and SKILL.md §6.
 
 ## Connection
 
@@ -36,10 +39,13 @@ POST   /x/inbox/read                           {"ids":["..."]} or {"all":true}
                                                 one task — the id you already have
 ```
 
-`/x/mentions` is only what was addressed to this person: mentions in comments,
-chat and notes, plus tasks assigned to them. Check it before `/x/inbox` — the
-wider feed mixes "someone closed their own task" with "a person is waiting for
-my answer", and the second gets lost in the first.
+`/x/inbox` is the entry point: its `branches` say what kind of thing is
+waiting and how much — `announcements`, `ball` (a ball passed to this person),
+`mentions`, `answers` (replies inside a checklist), `comments`, `tasks`, … —
+and open a branch only when its count says there is something in it.
+`/x/mentions` is the `mentions` branch on its own: what was addressed to this
+person, including `kind="question"` — a task waiting for their answer, which
+is answered with a handoff, not a comment.
 
 ## Releases
 
@@ -64,17 +70,46 @@ Off by default: 404 until a project owner enables them. No DELETE — a version
 is a fact, close a wrong one with a stage change. Tasks link to versions from
 the task side: `releaseIds` in POST/PATCH `/x/tasks`.
 
+## The ball
+
+```
+GET    /x/ball/mine                            ?sort=held|due|priority|created &group=move|project &move=do|review|answer
+                                               "На мне": every task whose ball is with this person, across
+                                               the connection's projects. "table" (at most 3), then "items":
+                                               answers first, then reviews, then work; waiting for the client
+                                               last. Each item: "last" (latest handoff + note), "isNew",
+                                               "moves" (handoff actions allowed right now), "url".
+GET    /x/ball/from-me                         ?group=holder  "От меня": owned by this person, held by
+                                               someone else — what am I waiting for, from whom.
+POST   /x/ball/table                           {"task","on":true|false}  at most 3 per holder; a 4th → table_full
+POST   /x/ball/quick                           {"text","preview?","project?","company?"}
+                                               "fix the header @Elisha #Atlas" — preview first; ambiguous
+                                               names come back as "candidates"
+POST   /x/tasks/:id/handoff                    {"action","to?","note?"}
+                                               action: take | pass | review | accept | return | ask | answer |
+                                               wait_client | client_replied | cancel | reopen
+                                               note REQUIRED for review, return, ask, answer, cancel.
+                                               "to": "me", a name or a user id; pass with "to": null = backlog.
+                                               A refusal carries "hint"; 409 "conflict" = re-read the task.
+GET    /x/tasks/:id/handoffs                   the handoff log: who passed it to whom, note, round
+```
+
+The list «Все» of the app has no bridge twin: use `GET /x/tasks` per project.
+
 ## Tasks
 
 ```
 GET    /x/open?link=<link or TASK-81>          task behind a pasted link — short, full URL or number
-GET    /x/tasks
+GET    /x/tasks                                ?assignee=me &status= &q= &fields=brief &limit=
+                                               &blocked=1 &stale=<days> &noEstimate=1 &overdue=1
 PATCH  /x/tasks/bulk                           {"tasks":["TASK-4","TASK-7"], "set":{...}, "refs":{"TASK-4":"19.1"}}
 DELETE /x/tasks/bulk                           {"tasks":["TASK-4","TASK-7"]}
-GET    /x/tasks/:id
-POST   /x/tasks                                {"title","assignee","description?","status?","priority?","estimateMinutes?","sprintId?","attachmentIds?","resourceIds?","refs?","links?"}
-                                               assignee is REQUIRED: a task nobody owns never appears in any task list. Ask who should do it.
-PATCH  /x/tasks/:id
+GET    /x/tasks/:id                            carries "ball": {move, ownerId, round, heldSince, askFromId,
+                                               waitingClientSince, onTable}
+POST   /x/tasks                                {"title","assignee","description?","status?","priority?","estimateMinutes?","dueDate?","sprintId?","attachmentIds?","resourceIds?","releaseIds?","refs?","links?"}
+                                               assignee is REQUIRED: it gets the ball. Ask who should do it.
+PATCH  /x/tasks/:id                            status/assignee here still work — turned into handoffs, no note.
+                                               Prefer /handoff.
 DELETE /x/tasks/:id
 GET    /x/tasks/:id/history                    who created it, assigned it, moved its status — milestones only
 GET    /x/search/tasks?q=…                     find a task across EVERY project, by meaning
@@ -98,13 +133,6 @@ GET    /x/tasks/:id/resources
 POST   /x/tasks/:id/resources                  {"resources":["<resourceId>"]}
 DELETE /x/tasks/:id/resources/:resourceId
 
-# Files kept under a resource: keystore, certificate, private key.
-# Encrypted at rest, never listed among project files. Names and sizes only;
-# downloading is a separate call and is audited. Uploading: ask the human.
-GET    /x/resources/:id/files
-GET    /x/resources/:id/files/:fileId          binary download
-POST   /x/resources/:id/files                  multipart: file=@path
-                                               (MCP: chatick_upload with resourceId)
 GET    /x/tasks/:id/checklist
 POST   /x/tasks/:id/checklist                  {"items":["...","..."]} or {"text":"...","note":"..."}
 PATCH  /x/tasks/:id/checklist/:itemId
@@ -121,7 +149,10 @@ DELETE /x/tasks/:id/comments/:commentId
 GET    /x/blockers
 ```
 
-## Sprints
+## Sprints (legacy)
+
+Gone from the interface in 2.0; kept for old integrations. Use only when the
+human explicitly asks — nobody sees a sprint in the app.
 
 ```
 GET    /x/sprints
@@ -134,13 +165,33 @@ DELETE /x/sprints/:id
 
 ```
 GET    /x/time/running
-POST   /x/time/start                           {"task?":"TASK-12","description?":"...","startedAt?":"<ISO>"}
+POST   /x/time/start                           {"task?":"TASK-12","description?":"...","startedAt?":"<ISO>","onCompany?":true}
 POST   /x/time/stop                            {"id?":"<entryId>"}  — id needed only if several run
-POST   /x/time                                 {"startedAt","endedAt","task?","description?"} — after the fact
-GET    /x/time
+POST   /x/time                                 {"startedAt","endedAt","task?","description?","onCompany?":true} — after the fact
+GET    /x/time                                 ?from= &to= &task= &mine=1 &onCompany=1
 PATCH  /x/time/:id                             {"description?","task?","startedAt?","endedAt?","project?"}
+                                               "project": null moves the entry onto the company
 POST   /x/time/resume                          {"id?":"<entryId>"}  — carry on after a break
 GET    /x/time/report
+```
+
+`onCompany`: time on the company itself, no project and no task — a call,
+planning, mail.
+
+## Company
+
+No project needed. On a master connection add `?company=<id>`.
+
+```
+GET    /x/companies                            companies with the projects this person is in
+GET    /x/company/members                      everyone in the company, company role and job title
+PATCH  /x/company/members/:userId              {"jobTitle"?, "responsibility"?, "role"?}  company admin only;
+                                               manager/admin see EVERY project — ask first
+GET    /x/company/time                         ?from= &to= &person=  hours by person and project
+GET    /x/company/documents                    ?q=  documents of every project you can read
+GET    /x/company/releases                     versions of every project + "live"
+POST   /x/announce                             {"title","body?","project?","users?","email?"}  company admin;
+                                               interrupts everybody — ask the human first
 ```
 
 ## Members
@@ -148,8 +199,9 @@ GET    /x/time/report
 ```
 GET    /x/members
 GET    /x/members/available
-POST   /x/members                              {"userId"|"email", "role"?: "admin"|"member"}
-PATCH  /x/members/:userId
+POST   /x/members                              {"userId"|"email", "role"?: "admin"|"member", "companyRole"?}
+PATCH  /x/members/:userId                      {"role"?, "permissions"?, "jobTitle"?, "responsibility"?}
+DELETE /x/members/:userId                      out of THIS project only — ask first
 ```
 
 ## Projects
@@ -158,14 +210,11 @@ PATCH  /x/members/:userId
 GET    /x/projects
 POST   /x/projects                             {"name","about?","chatRules?"} — new project
 PATCH  /x/projects/:id                         {"name"?, "about"?, "chatRules"?, "color"?}
-POST   /x/projects/:id/hide                    take it off your own list; ?hide=0 brings it back
-                                               Personal: hiding it changes nothing for anyone else.
-                                               A hidden project returns on its own once something
-                                               unread appears in it.
-POST   /x/projects/:id/leave                   leave the project yourself (the owner cannot)
 ```
 
 ## Project chat
+
+Chat lives only in the mobile app in 2.0; the bridge still serves it.
 
 ```
 GET    /x/messages/:id/context
@@ -197,8 +246,8 @@ DELETE /x/notes/:id
 
 ## Work log
 
-Where each person stopped. Read `latestOwn` when you start, write an entry when
-you stop — every session (§9.9).
+Where each person stopped. Read `latestOwn` when you start, extend your draft
+after every finished piece of work (SKILL.md §9.9).
 
 ```
 GET    /x/worklog?authorId=&from=&to=&limit=   reply opens with latestOwn
@@ -218,6 +267,28 @@ GET    /x/resources
 POST   /x/resources                            {"name"?,"url"?,"description"?,"secrets"?,"viewers"?}
 PATCH  /x/resources/:id
 DELETE /x/resources/:id/secrets/:secretId
+
+# Files kept under a resource: keystore, certificate, private key.
+# Encrypted at rest, never listed among project files. Names and sizes only;
+# downloading is a separate call and is audited.
+GET    /x/resources/:id/files
+GET    /x/resources/:id/files/:fileId          binary download
+POST   /x/resources/:id/files                  multipart: file=@path
+                                               (local MCP: chatick_upload with resourceId)
+DELETE /x/resources/:id/files/:fileId          remove one attached by mistake
+```
+
+## Releases integration
+
+```
+GET    /x/integrations/expo                    is Expo connected? returns the ready command
+POST   /x/integrations/expo                    connect it; returns the command to run in the app folder
+```
+
+## Report to the Chatick team
+
+```
+POST   /x/report                               {"kind":"request"|"bug"|"missing"|"docs","body","context?"}
 ```
 
 ## Activity
@@ -236,12 +307,6 @@ GET    /x/trash
 
 ```
 GET    /x/
-```
-
-## companies
-
-```
-GET    /x/companies
 ```
 
 ## shares
@@ -290,11 +355,15 @@ GET    /x/chat/messages
 ## Field values
 
 ```
-status     todo | in_progress | review | verified | done
+move       do | review | answer                  what the holder owes (ball.move)
+action     take | pass | review | accept | return | ask | answer |
+           wait_client | client_replied | cancel | reopen
+status     todo | in_progress | review | done | cancelled
+           derived from the moves; "verified" is gone (sent by an old client, it closes as done)
 priority   low | normal | high | urgent
-assignee   <userId> | "me"
+assignee   <userId> | "me" | a name | an email   — the holder of the ball
 estimateMinutes   integer, minutes
 ```
 
-Endpoints in total: 85.
+Endpoints in total: 126.
 

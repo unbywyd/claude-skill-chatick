@@ -1,43 +1,69 @@
 ---
 name: chatick
-description: Work inside a Chatick project — read and create tasks, assign them with an estimate, move them through statuses, tick their checklists, report every result in task comments, and keep the work log so the next session knows where this one stopped and what was agreed. Use when the human asks you to take work from Chatick or put work into it, when you are about to start work that belongs in a project, when picking work back up after a break, when a task number like TASK-81 appears, or when they say "поставь задачу", "что на мне", "возьми в работу", "отпишись в задаче", "смени статус", "продолжаем", "на чём остановились".
-when_to_use: Triggers include Chatick, чатик, TASK-<number>, "поставь задачу", "создай задачу", "что мне делать", "что на мне", "возьми в работу", "отпишись в комментарии", "смени статус", "оцени время", "запусти таймер", api.chatick.com, /x/tasks, bridge token, device flow. ALSO on picking work back up or closing a piece of it: "продолжаем", "продолжим", "на чём остановились", "что вчера делали", "где мы остановились", "что было сделано", "запиши что сделали", "зафиксируй", work log, журнал работы.
+description: Work inside a Chatick project — read and create tasks, pass the ball (take a task, send it for review, return it, ask and answer questions), tick their checklists, report every result in task comments, and keep the work log so the next session knows where this one stopped and what was agreed. Use when the human asks you to take work from Chatick or put work into it, when you are about to start work that belongs in a project, when picking work back up after a break, when a task number like TASK-81 appears, or when they say "поставь задачу", "что на мне", "возьми в работу", "отправь на проверку", "отпишись в задаче", "продолжаем", "на чём остановились".
+when_to_use: Triggers include Chatick, чатик, TASK-<number>, "поставь задачу", "создай задачу", "что мне делать", "что на мне", "что от меня ждут", "чего я жду", "возьми в работу", "передай", "отправь на проверку", "верни на доработку", "задай вопрос", "ответь в задаче", "положи на стол", мяч, "отпишись в комментарии", "смени статус", "закрой задачу", "оцени время", "запусти таймер", api.chatick.com, api.chatick.com/mcp, /x/tasks, /x/ball, handoff, bridge token, device flow. ALSO on picking work back up or closing a piece of it: "продолжаем", "продолжим", "на чём остановились", "что вчера делали", "где мы остановились", "что было сделано", "запиши что сделали", "зафиксируй", work log, журнал работы.
 ---
 
 # Working in Chatick
 
-Chatick is where a team's work lives: projects, tasks, chat, files, time. You
-connect through the **bridge** — an HTTP API at `https://api.chatick.com/x/...`
-built for assistants, not a scrape of the web app.
+Chatick is where a team's work lives: companies, projects, tasks, documents,
+files, time. You connect through the **bridge** — an HTTP API at
+`https://api.chatick.com/x/...` built for assistants, not a scrape of the web
+app — or through the MCP server that wraps it (§2).
 
 You are a **participant**, not a robot posting into a void. Everything you write
 is read by people who will act on it, and everything you change lands in their
 notifications.
 
+### Chatick 2.0 on one screen
+
+Since 2.0 (October 2026) Chatick is built around one idea: **every task is a
+ball**. Anything you remember about moving tasks through statuses, `verified`,
+or planning in sprints is from 1.x.
+
+- **Every open task is in one person's hands** — the holder (`assignee`) — with
+  one **move**: `do` (do the work), `review` (check someone's work) or `answer`
+  (answer a question). The **owner** — by default whoever created the task —
+  answers for the result and accepts it.
+- **Work moves by handoffs**, each with a note: take, pass, send for review,
+  accept, return, ask, answer, wait for the client, cancel, reopen (§6). The
+  status follows the moves; nobody sets it by hand.
+- **Heat** is how long the ball has sat with its holder. **Waiting for the
+  client** is a pause on top of the move.
+- **The table** holds up to 3 of a holder's most urgent tasks. **The backlog**
+  is tasks with no holder, which anyone in the team can take.
+- The app's lists are **На мне** (the ball is with me), **От меня** (I own it,
+  someone else holds it) and **Все** (§9). Projects are a switcher inside one
+  company screen.
+- **Gone from the interface:** sprints, statistics screens, and the team chat
+  in the web app — chat lives only in the mobile app. Their endpoints and MCP
+  tools still exist; see §11.5 and §13.
+
 ---
 
 ## 0. No work without a task — this is the rule the rest hangs on
 
-**Before you touch anything, there must be a task, and it must be yours.**
-Either the human points you at one, or you create it. Then you move it to
-`in_progress` and only then start.
+**Before you touch anything, there must be a task, and the ball must be with
+the person you work for.** Either the human points you at one, or you create
+it. If it sits in the backlog, take it; if someone else holds it, ask the human
+before doing anything about that (§6). Only then start.
 
-Work done outside a task is invisible: it does not show up on the board, nobody
-can plan around it, and in three weeks nobody can tell why the code looks like
-that. "I'll just fix it quickly, no need for a task" is how a project
+Work done outside a task is invisible: it does not show up in anyone's list,
+nobody can plan around it, and in three weeks nobody can tell why the code looks
+like that. "I'll just fix it quickly, no need for a task" is how a project
 loses its own history.
 
 **Extra fixes found along the way get their own tasks.** You came to fix the
 login button and noticed the timer is broken too — that is a second task, not a
-silent extra commit. Create it, estimate it, and either do it (moving it
-through its own statuses) or leave it in `todo` for someone. One task, one
+silent extra commit. Create it, estimate it, and either do it (it gets its own
+ball and its own handoffs) or hand it to whoever should do it. One task, one
 piece of work, one trail:
 
-- someone reading the board sees what was actually done, not one vague task
+- someone reading the project sees what was actually done, not one vague task
   hiding five changes;
 - the estimate on the first task stays honest;
-- the second fix can be assigned to someone else, or rejected, without
-  unpicking your commit.
+- the second fix can be given to someone else, or rejected, without unpicking
+  your commit.
 
 If the extra work is genuinely inseparable — the same edit, the same file, the
 same minute — put it in the original task's **checklist** and say so in a
@@ -54,14 +80,15 @@ curl -s https://api.chatick.com/x/guide -H "authorization: Bearer $TOKEN"
 This file teaches **how to behave**. The server's guide lists **what exists**:
 every endpoint, every field, and the exact permissions of the person you act
 for. It ships with the API, so it is never out of date — this file, and any
-endpoint list you remember, can be.
+endpoint list you remember, can be. The MCP tools call the same bridge, so the
+guide describes them too.
 
 Read it after connecting, before your first real call. When the two disagree,
 the server wins.
 
-**Offline map:** [`reference/endpoints.md`](reference/endpoints.md) lists all 85
-endpoints with their request bodies, generated from the bridge source. Use it to
-answer "is there an endpoint for this" without a network call — but for exact
+**Offline map:** [`reference/endpoints.md`](reference/endpoints.md) lists all 126
+bridge endpoints with their request bodies, taken from the bridge source. Use it
+to answer "is there an endpoint for this" without a network call — but for exact
 field semantics and this person's permissions, still read the server's guide.
 
 ---
@@ -69,8 +96,8 @@ field semantics and this person's permissions, still read the server's guide.
 ## 1.5. Write in the project's language — always
 
 **Every word that lands in Chatick is written in the language of the project:**
-task titles and descriptions, comments, checklist items, chat messages, notes,
-documents, release stage comments. No exceptions.
+task titles and descriptions, handoff notes, comments, checklist items, chat
+messages, notes, documents, release stage comments. No exceptions.
 
 Take it from the data, never from a guess:
 
@@ -101,22 +128,30 @@ the team.
 
 ---
 
-## 2. Connect — device flow, no secrets in chat
+## 2. Connect — look at your tool list first
 
-**Check for the tool before you print a code. Do not skip this.**
+**Check your tools before you print a code. Do not skip this.** One look, no
+command to run, no file to read: MCP tools are either in your list or they are
+not. Three cases:
 
-Look at your own tool list for a tool named `chatick_connect`. That is the
-whole check — one look, no command to run, no file to read. It is reliable
-because MCP tools are either in your list or they are not.
-
-- **`chatick_connect` is in your list** → call it. Nothing else. It handles the
-  desktop app and the code flow by itself, and when the app is running the
-  human just presses a button. Do not read the rest of this section.
-- **It is not in your list** → the server is not configured in this session.
-  Use the curl flow below, and say so in one line: "The Chatick MCP server is
-  not set up here, so I will connect with a code." Offer the one-time fix only
-  if they ask — `claude mcp add --scope user chatick -- node <path>/apps/mcp/dist/index.js`
-  in an interactive session — and do not stall waiting for them to do it.
+- **`chatick_connect` is in your list** → the local MCP program (installed by
+  `scripts/install.mjs`). Call it. Nothing else. It handles the desktop app and
+  the code flow by itself, and when the app is running the human just presses a
+  button. Do not read the rest of this section.
+- **Other `chatick_*` tools are there, but no `chatick_connect`** → the MCP
+  served by address, `https://api.chatick.com/mcp`, signed in through OAuth in
+  the browser. You are already connected — just call the tools. If they answer
+  that access is missing, tell the human to run `/mcp` → Authenticate (in
+  claude.ai, the connector's Connect button). That server has no access to
+  anyone's machine, so `chatick_upload`, `chatick_file_get` and `chatick_open`
+  do not exist there: ask the person to attach or open the file in the app.
+- **No `chatick_*` tools at all** → nothing is configured in this session. Use
+  the curl flow below, and say so in one line: "The Chatick MCP server is not
+  set up here, so I will connect with a code." Offer the one-time fix only if
+  they ask — `claude mcp add --scope user --transport http chatick https://api.chatick.com/mcp`
+  (nothing to install; then `/mcp` → Authenticate in a new session), or
+  `node ~/.claude/skills/chatick/scripts/install.mjs` for the local program —
+  and do not stall waiting for them to do it.
 
 Never announce that you are "connecting through MCP" before confirming the tool
 exists, and never ask the human whether MCP is available: they cannot see your
@@ -159,7 +194,9 @@ keep following the old rules, since those are the ones you actually loaded.
 disagrees with anything here, the guide is right and this skill is the stale
 one — that is a signal worth mentioning to the human.
 
-The steps below are for the second case only — by hand, over curl.
+### By hand, over curl
+
+The steps below are for the third case only.
 
 ```bash
 # 1. ask for a code
@@ -182,10 +219,10 @@ curl -s -X POST https://api.chatick.com/x/device/poll \
 Keep the token **in memory for this session only**. Never write it to a file,
 never echo it back, never commit it.
 
-(The MCP server does keep a token on disk, in `~/.chatick/mcp-token.json`. That
-is its own deliberate trade — a file the human owns, so they are not asked for a
-code every session. It is not licence to write tokens anywhere yourself: when
-you are running the flow above by hand, the token stays in memory.)
+(The local MCP program does keep a token on disk, in `~/.chatick/mcp-token.json`.
+That is its own deliberate trade — a file the human owns, so they are not asked
+for a code every session. It is not licence to write tokens anywhere yourself:
+when you are running the flow above by hand, the token stays in memory.)
 
 **Check the clock before multi-step work.** Every response carries
 `x-tunnel-expires-in`. The tunnel dies after 24h, 12h idle, or when closed. A
@@ -222,43 +259,86 @@ and drop it.
 
 ---
 
-## 3. Two shapes of token — know which one you hold
+## 3. Three shapes of access — know which one you hold
 
-The approval reply tells you. It matters for every single call:
+The approval reply tells you (the MCP tools say it in words). It matters for
+every single call:
 
 | Scope | What it means | Every request |
 | --- | --- | --- |
 | **Project** | one project | `?project=` not needed |
-| **Company** | all projects the person can see | `?project=<id>` **required** |
+| **Company** | every project of one company the person can see | `?project=<id>` **required** |
+| **All** (master) | every company and project they belong to, including later ones | `?project=<id>` **required** |
 
-On a company token, omitting `?project=` is the most common way to fail. Get the
-list with `GET /x/projects`.
+On a company or master token, omitting `?project=` is the most common way to
+fail. Get the list with `GET /x/projects` (`chatick_projects`); on a master
+token `GET /x/companies` groups them by company. MCP tools take `project` as a
+parameter and add it for you.
+
+Company-level views need no project: hours, documents and releases of the
+whole company (`chatick_company_time`, `chatick_company_documents`,
+`chatick_company_releases`). On a master connection they take `company`.
+
+None of the three grants anything beyond the person's own access: each call
+still checks their membership and permissions in that particular project.
+
+---
+
+## 3.5. Which tool for which intent
+
+The rest of this file names the bridge endpoint next to the MCP tool; the
+behaviour is the same either way.
+
+| The human wants | MCP tool | Bridge |
+| --- | --- | --- |
+| "what is waiting for me", "anything new" | `chatick_inbox`, then `chatick_inbox_read` | `GET /x/inbox`, `POST /x/inbox/read` |
+| "what is on me", "what next" | `chatick_ball` view=`mine` | `GET /x/ball/mine` |
+| "what am I waiting for, and from whom" | `chatick_ball` view=`from-me` | `GET /x/ball/from-me` |
+| everything in a project; "what is stuck / forgotten / overdue" | `chatick_tasks` (+ `blocked`, `stale`, `noEstimate`, `overdue`) | `GET /x/tasks` |
+| a pasted link or `TASK-81` | `chatick_task_by_link`, `chatick_task` | `GET /x/open?link=`, `GET /x/tasks/<id>` |
+| "where was that task", "where did we discuss X" | `chatick_search_tasks` | `GET /x/search/tasks` |
+| a new task | `chatick_task_create`; a one-liner: `chatick_quick_task` | `POST /x/tasks`, `POST /x/ball/quick` |
+| take, pass, send for review, accept, return, ask, answer, cancel | `chatick_handoff` | `POST /x/tasks/<id>/handoff` |
+| "why is this on me", "how many times was it returned" | `chatick_handoffs`, then `chatick_task_history` | `GET /x/tasks/<id>/handoffs`, `/history` |
+| put on the table / take off | `chatick_table` | `POST /x/ball/table` |
+| report a result | `chatick_comment` | `POST /x/tasks/<id>/comments` |
+| steps or questions inside a task | `chatick_checklist`, `chatick_checklist_add`, `chatick_checklist_tick` | `/x/tasks/<id>/checklist` |
+| timer, hours | `chatick_timer`, `chatick_timer_start`, `chatick_time_log`, `chatick_time_update`, `chatick_time_report`, `chatick_company_time` | `/x/time…`, `/x/company/time` |
+| "was this solved before" | `chatick_notes` | `GET /x/notes` |
+| "where did I stop" | `chatick_worklog` | `GET /x/worklog` |
+| specs, long text | `chatick_documents`, `chatick_company_documents` | `/x/documents`, `/x/company/documents` |
+| "what is in production" | `chatick_releases`, `chatick_company_releases` | `/x/releases`, `/x/company/releases` |
+| "what did we agree in chat" | `chatick_chat_summaries`, `chatick_chat_search` | `/x/chat/…` |
+| "Chatick cannot do X" | `chatick_report` | `POST /x/report` |
+| anything else | `chatick_request` | any `/x/…` path |
 
 ---
 
 ## 4. Creating a task — four things, not one
 
-A task with only a title is a note to nobody. Before `POST /x/tasks`, settle
-all four:
+A task with only a title is a note to nobody. Before `POST /x/tasks`
+(`chatick_task_create`), settle all four:
 
-**Which project.** On a company token this is a decision, not a default. Ask if
-it is not obvious; the wrong project hides the task from the people who needed
-it.
+**Which project.** On a company or master token this is a decision, not a
+default. Ask if it is not obvious; the wrong project hides the task from the
+people who needed it.
 
 **What language.** The project's, not yours — see §1.5. It is the rule broken
 most often, because the language you are being *spoken to in* is not
 necessarily the language the project is *written in*.
 
-**Who does it.** `"assignee"` takes a userId, or `"me"`. Take real ids from
-`GET /x/members` — never invent one. An unassigned task belongs to nobody and
-is read by nobody: assign it, or say out loud that you are leaving it
-unassigned and why.
+**Who holds the ball.** `"assignee"` is required: `"me"`, a name, or a userId
+from `GET /x/members` — never invent one. The assignee gets the ball with the
+move `do`; the person you act for becomes the **owner**, who receives the work
+for review and accepts it. The ball can only go to someone in the project's
+team (`not_member` otherwise) — a company manager who is not in the team cannot
+hold it. If the human did not say who, ask.
 
 **How long it takes.** `"estimateMinutes"` — an integer. **Do not skip it.**
-Without it nobody can plan a sprint or say what fits in a day, and the number
-never gets added later. Estimate from the work you just did or are proposing; a
-rough number beats none. If you truly cannot guess, say so in the description
-rather than leaving the field silently empty.
+Without it nobody can say what fits in a day, and the number never gets added
+later. Estimate from the work you just did or are proposing; a rough number
+beats none. If you truly cannot guess, say so in the description rather than
+leaving the field silently empty.
 
 ```bash
 curl -s -X POST "https://api.chatick.com/x/tasks?project=$P" \
@@ -272,23 +352,36 @@ curl -s -X POST "https://api.chatick.com/x/tasks?project=$P" \
   }'
 ```
 
+**Keep it short.** A task is what to do and how to check it, readable without
+scrolling. Details go in a comment, a checklist or a document. Past 1 500
+characters the reply carries a `"warning"` — the write still succeeded, and a
+PATCH fixes it.
+
+**One line, the way people say it.** `chatick_quick_task` (`POST /x/ball/quick`)
+is the app's quick add: `"fix the header @Elisha #Atlas"` — no `#` means the
+company's main project, no `@` means the person you act for. Call it with
+`preview=true` first and tell the human whom and where it goes; ambiguous names
+come back as `candidates` — ask, never pick the first. It takes no estimate, so
+add one with `chatick_task_update` right after, or use `chatick_task_create`
+from the start.
+
 The reply carries the **number** (`TASK-81`). Use numbers everywhere a task
 appears in a path — that is what the human says out loud, and it survives you
 losing whatever id map you kept.
 
 **Give the human a link from the reply — never one you assembled.** Every task
-in a response carries a ready `url`. The address format has changed once
-already, and a guessed `/#/p/<id>` looks plausible while opening a blank
-screen: the route does not exist, the router renders nothing, and the person
-concludes the product is broken.
+in a response carries a ready `url`. The address format has changed before, and
+a guessed address looks plausible while opening a blank screen: the route does
+not exist, the router renders nothing, and the person concludes the product is
+broken.
 
-Replies about **one** task (`GET`/`POST`/`PATCH` of a single task) also carry
-`shortUrl` — `chatick.com/t-AbC12`. **Prefer it when writing to a person.**
-`url` is ninety characters with two ids and a `#`: it wraps across lines in
-chat, and because it contains no spaces it is one unbreakable word — it
-stretched notification cards to eight lines and broke the layout of the feed.
-Both open the same task, and neither grants access: rights are checked on
-arrival, exactly as with the long address.
+Replies about **one** task (`GET`/`POST`/`PATCH` of a single task, and a
+handoff) also carry `shortUrl` — `chatick.com/t-AbC12`. **Prefer it when
+writing to a person.** `url` is ninety characters with two ids and a `#`: it
+wraps across lines in chat, and because it contains no spaces it is one
+unbreakable word — it stretched notification cards to eight lines and broke the
+layout of the feed. Both open the same task, and neither grants access: rights
+are checked on arrival, exactly as with the long address.
 
 Lists leave `shortUrl` out — a short link is a row in a table, and fifty of
 them per listing would be written for nothing. Fetch the single task when you
@@ -306,6 +399,7 @@ Pass `"links"` when you create each one:
 ```bash
 -d '{
   "title": "Fix the Safari sign-in",
+  "assignee": "me",
   "estimateMinutes": 60,
   "links": ["TASK-3"]
 }'
@@ -356,8 +450,8 @@ looking mid-way can see where the work stands. Ticking is manual and
 reversible; if something turns out not to be done, untick it.
 
 Use `"note"` on an item when the outcome needs a word ("does not reproduce on
-Android 14"). Nothing happens automatically when every item is ticked — closing
-the task is still your decision, and still gets a comment.
+Android 14"). Nothing happens automatically when every item is ticked — handing
+the task over is still your move (§6), and still gets a comment.
 
 **A checklist item is often a question, and the answer lives in its note.**
 "Which key do we sign with?" is a checklist item; the reply comes back under
@@ -379,40 +473,110 @@ answers themselves are only here.
 
 ---
 
-## 6. Statuses — move the task as the work moves
+## 6. The ball — how work moves
 
-`todo` → `in_progress` → `review` → `verified` → `done`
+A task is always with one person, the **holder** (`assignee`), and
+`ball.move` says what they owe it:
 
-```bash
-curl -s -X PATCH "https://api.chatick.com/x/tasks/TASK-81?project=$P" \
-  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-  -d '{"status":"in_progress"}'
-```
+| `move` | What the holder owes |
+| --- | --- |
+| `do` | the work itself |
+| `review` | a check of someone else's work |
+| `answer` | an answer to a question someone asked them |
 
-- **Take it before you work.** Move to `in_progress` when you start, not when
-  you finish. A task sitting in `todo` while you edit its files means someone
-  else may pick it up and do the same work twice.
-- **Finish into `review`, never into `done`.** When the work is ready, hand it
-  over: `review` means a human must look — a merge, a deploy, a decision you
-  are not entitled to make. Closing your own work skips the person whose job
-  is to check it, and that is exactly what the ladder exists to prevent.
-- **`verified` belongs to whoever checked.** Never set it on your own work: you
-  cannot confirm your own output. If tests failed or you could not check
-  something, say so in a comment and leave the task in `review`.
-- **`done` comes after the check**, not instead of it.
-- **Never change status silently.** Every move gets a comment. The board tells
-  people *that* something moved; only the comment tells them *what*.
+`GET /x/tasks/<id>` (`chatick_task`) carries
+`ball: {move, ownerId, round, heldSince, askFromId, waitingClientSince, onTable}`.
+`ownerId` is who answers for the result and accepts the work — the creator
+unless changed. `round` counts how many times it came back from review.
 
-Many tasks at once: `PATCH /x/tasks/bulk` with up to 100 numbers — one call
-instead of thirty.
+**Work moves by handoffs, not by statuses** — `chatick_handoff`, or
+`POST /x/tasks/<id>/handoff {"action","to?","note?"}`. `to` is `"me"`, a name
+or a user id.
+
+| `action` | What happens | Who may | Note |
+| --- | --- | --- | --- |
+| `take` | the ball comes to you | anyone in the team, if it is in the backlog; otherwise the owner | — |
+| `pass` | same move, to `to`; `to: null` puts it in the backlog | holder, owner | optional |
+| `review` | done, please check — goes to the owner, or to `to` | holder, owner | **required**: what to check |
+| `accept` | accepted — the task is closed | owner, or the reviewer holding it | — |
+| `return` | not right yet — back to whoever sent it, round +1 | owner, or the reviewer holding it | **required**: what is wrong |
+| `ask` | a question to `to`; they get the move `answer` | holder, owner | **required**: the question |
+| `answer` | the ball goes back to whoever asked | holder | **required**: the answer |
+| `wait_client` / `client_replied` | pause while the client is silent / resume | holder, owner | — |
+| `cancel` | drop the task | owner | **required**: why |
+| `reopen` | a closed task comes back | owner | — |
+
+Project owners and admins — and company managers and admins, who act as admins
+in every project of their company — may make any of these moves.
+
+- **Take before you work.** The ball must be with the person you act for, with
+  the move `do`, before the first edit. Backlog → `take`. Someone else holds it
+  → do not grab it: only the owner can, and it takes that person's work away.
+  Ask the human; if it really should move, the holder or the owner `pass`es it.
+- **Finish with `review`, never with `accept`.** Handing over is how the person
+  who checks gets to check; closing your own work skips them, and that is
+  exactly what the ball exists to prevent. `review` goes to the owner by
+  default. When the person you act for is both owner and holder there is no one
+  to send it to: report in a comment and let them accept it — or `review` with
+  `to` set to whoever they named as the checker.
+- **Accepting and cancelling are the owner's call, never yours.** Accept only
+  when the person you act for owns the task and told you to close it. Cancel
+  only when they said to drop it — a cancelled task leaves every list, count and
+  blocker chain at once. If you merely think a task is pointless, say so in a
+  comment and let them decide.
+- **A question is a move, not a comment.** Need something from someone before
+  you can continue? `ask` with `to` and the question as the note: the ball goes
+  to them with the move `answer`, and the waiting is now visibly theirs. When
+  the ball comes to *you* with `answer`, reply with `answer` and the answer as
+  the note — **a comment does not return the ball**, and the asker keeps
+  waiting. `chatick_mentions` lists those as `kind="question"`.
+- **The note is the first thing the next person reads.** In the project's
+  language (§1.5), standing on its own: what to check, what is wrong, the
+  question, the answer, why. The full report of what you did still goes in a
+  comment (§7) — the note says what happens next.
+- **Offer only the moves that exist.** Every item from `chatick_ball` carries
+  `moves` — what this person can do with it right now. Anything else is
+  refused, and the refusal carries `hint` with the next step. `409 conflict`
+  means someone moved the ball a moment ago: read the task again and decide on
+  the fresh state.
+- **Waiting for the client** is `wait_client`: the ball stays where it is, the
+  task drops to the bottom of the holder's list, and the clock counts the wait.
+  `client_replied` ends it.
+
+**Heat** — how long the ball has been with its holder, counted from
+`ball.heldSince`. Doing is hot after 3 days and burning after 5; review and
+answer are hot after 1 day and burning after 2. Use it when you report on a
+plate ("TASK-84 has waited for your review for three days"), not as a licence
+to nag people on your own.
+
+**The table** — up to 3 of a holder's most urgent tasks, shown apart on the
+main screen: everyone involved sits around it, and the ball lies in front of
+whoever's move it is. `chatick_table` (`POST /x/ball/table {"task","on"}`)
+puts a task on or takes it off — when the person asks; what is urgent is their
+call. A fourth is refused with `table_full`: ask which one to take off, never
+choose for them.
+
+**Statuses still exist, but nobody sets them by hand.** `status` (`todo`,
+`in_progress`, `review`, `done`, `cancelled`) is derived from the moves for
+reports and old clients. A raw `status` or `assignee` in `chatick_task_update`
+(`PATCH /x/tasks/<id>`) is still accepted and turned into the same moves, under
+the same rules — but it leaves no note, and the note is how the next person
+learns why the task landed on them. Use `chatick_handoff`. The one status change
+that is not a handoff is `todo` → `in_progress`: harmless and optional. There is
+no `verified` any more — sending it closes the task as `done`.
+
+`PATCH /x/tasks/bulk` changes up to 100 tasks in one call (`set` for what is the
+same, `refs` for what differs). Status changes in it are moves too: ask before
+moving many tasks at once, and read `errors` in the reply before reporting
+success.
 
 ---
 
 ## 7. Comments — every result is reported here, always
 
-**Finishing the work is not finishing the job.** A task you completed without a
-closing comment reads, to everyone else, as a task that was silently marked
-done. Write the comment *before* you consider yourself finished.
+**Finishing the work is not finishing the job.** A task you handed over without
+a comment reads, to everyone else, as one silently passed along. Write the
+comment *before* you consider yourself finished.
 
 ```bash
 curl -s -X POST "https://api.chatick.com/x/tasks/TASK-81/comments?project=$P" \
@@ -427,10 +591,12 @@ somebody opens in three weeks asking "why was this done this way".
 
 - **Read the thread before acting.** The description says what was asked; the
   comments say what was decided since.
+- **A comment does not move the ball.** If the task waits for your answer
+  (`ball.move = "answer"`), answer with the handoff (§6), not here.
 - **Reply to a specific comment** with `"replyTo": "<commentId>"` — without it
   the thread reads as a flat list and nobody can tell what you answered.
 - **Mention with `@[Name](<userId>)`** — only that exact markup notifies. A
-  plain `@name` is just text. The author, the assignee and the person you
+  plain `@name` is just text. The author, the holder and the person you
   replied to are notified anyway; do not mention them for that alone.
   The same markup works in a task **description** and notifies the same way, so
   you can pull someone in as you create the task instead of commenting right
@@ -461,9 +627,9 @@ curl -s https://api.chatick.com/x/time/running -H "authorization: Bearer $TOKEN"
 ```
 
 - **Nothing running → offer to start one.** Say what you are about to work on
-  and offer a general timer for it. Their hours are how the work gets counted;
-  a day of work with no entry is a day that did not happen as far as any report
-  is concerned.
+  and offer a timer for it. Their hours are how the work gets counted; a day of
+  work with no entry is a day that did not happen as far as any report is
+  concerned.
 - **Something already running → leave it alone.** Do not stop it, do not
   restart it, do not "fix" it. It may be running for something else entirely.
 - **Never stop a timer on your own.** Stopping is the human's decision and
@@ -476,7 +642,11 @@ which one rather than reporting a mysterious refusal.
 Pausing IS stopping — a break must not land in the hours; `/x/time/resume`
 carries on with the same description and task.
 
----
+**Work that belongs to no project** — a call, planning, mail — goes on the
+company itself: `onCompany=true` on `chatick_timer_start` or `chatick_time_log`,
+with no project and no task. `chatick_company_time` (`GET /x/company/time`) adds
+up hours across the whole company: everyone's for company admins and managers,
+the person's own otherwise.
 
 ### Fixing time after the fact
 
@@ -487,6 +657,7 @@ hour late. You can fix all of it.
 ```
 chatick_time_list(project, from="2026-08-01")     # find the entry id
 chatick_time_update(project, entryId, moveToProject="<other project id>")
+chatick_time_update(project, entryId, moveToProject=null)   # off the project, onto the company
 chatick_time_update(project, entryId, startedAt="2026-08-19T09:00:00Z")
 chatick_time_log(project, startedAt=..., endedAt=..., description="...")
 chatick_timer_stop(project)                        # even one left in another project
@@ -505,39 +676,60 @@ time is worse than missing time: somebody bills by it, and the error is quiet �
 wrong hours look exactly like right ones.
 
 Someone else's entry needs `tasks.edit`; your own is always yours to fix.
+Deleting entries is not available through the bridge — correct them instead.
+
+---
 
 ## 9. Telling the human what is on their plate
 
 **Explain tasks in your own words. Never paste the dashboard back at them.**
 
-They have already seen the board. Copying titles, ids, statuses, priorities and
-full descriptions into chat is a wall of text they have to re-read — and it is
-work you did not do for them.
+They have already seen their lists. Copying titles, ids, statuses, priorities
+and full descriptions into chat is a wall of text they have to re-read — and it
+is work you did not do for them.
 
-```bash
-# short shape first: number, title, status, priority, assignee
-curl -s "https://api.chatick.com/x/tasks?assignee=me&status=todo&fields=brief" \
-  -H "authorization: Bearer $TOKEN"
-```
+The app has three lists, and each has its call:
+
+| List in the app | The question | Call |
+| --- | --- | --- |
+| **На мне** | what is on me, what next | `chatick_ball` view=`mine` — `GET /x/ball/mine` |
+| **От меня** | what am I waiting for, and from whom | `chatick_ball` view=`from-me` — `GET /x/ball/from-me` |
+| **Все** | everything in a project; what is stuck | `chatick_tasks` — `GET /x/tasks?fields=brief`, with `blocked=1`, `stale=14`, `noEstimate=1`, `overdue=1` |
+
+`/x/ball/mine` covers every project of the connection and comes already ordered
+by what is owed: `table` first (at most 3), then `items` — questions waiting for
+an answer, then reviews, then work; overdue and longest-held first, waiting for
+the client last. Each item carries `last` — the latest handoff with its note,
+that is, *why it is here* — `isNew` when the person has not opened it since it
+moved, `moves`, and a ready `url`. Do not rebuild this from
+`/x/tasks?assignee=me`: that list knows nothing about moves and is not ordered
+by them.
+
+`/x/ball/from-me` is the other side: tasks this person owns while someone else
+holds them, longest-held first — that is whom to ask.
 
 **Start brief, go deep only where asked.** For "what is on my plate", give a
-couple of lines per task:
+couple of lines per task, led by what is owed:
 
-> **TASK-81** — the sign-in button promises Google but opens our own screen.
-> Needs renaming and a check in both languages. An hour or so.
+> **TASK-84** — Ilya asks which key to sign the Android build with. The answer
+> is yours, and he has been waiting two days.
 >
-> **TASK-84** — the Android build fails after the Expo upgrade. Assigned to me,
-> but blocked by TASK-83, which Ilya is working on.
+> **TASK-81** — came back from review: the sign-in button still says Google.
+> Needs renaming and a check in both languages, an hour or so.
+>
+> **TASK-90** — on your table, yours to do, but blocked by TASK-83, which Ilya
+> holds.
 
 Not:
 
 > TASK-81 | Sign-in button promises Google but opens our own screen | status:
-> todo | priority: high | assignee: … | description: The button reads Sign in
-> with Google, but…
+> in_progress | move: do | priority: high | holder: … | description: The button
+> reads Sign in with Google, but…
 
-Then say which one you would take first, and why. `GET /x/inbox` already gives
-you `whatIsAsked` — one AI-written sentence per item — so use it as the basis
-of your summary instead of re-reading everything from scratch.
+Then say which one you would take first, and why — answers usually come first,
+because someone is stuck until you reply. `GET /x/inbox` already gives you
+`whatIsAsked` — one AI-written sentence per item — so use it as the basis of
+your summary instead of re-reading everything from scratch.
 
 Dump the full text of a task only when they ask for it, or when a detail
 actually changes what they should do.
@@ -550,10 +742,11 @@ curl -s "https://api.chatick.com/x/files/<id>/content" \
   -H "authorization: Bearer $TOKEN" -o /tmp/shot.png
 ```
 
-Read images, logs and short documents when the situation allows. Skip it when
-the file is huge, binary or plainly irrelevant — and say that you skipped it.
-"I did not open the attachment" is fine; summarising a bug from its title while
-ignoring the screenshot of it is not.
+(With the local MCP program: `chatick_file_get`.) Read images, logs and short
+documents when the situation allows. Skip it when the file is huge, binary or
+plainly irrelevant — and say that you skipped it. "I did not open the
+attachment" is fine; summarising a bug from its title while ignoring the
+screenshot of it is not.
 
 ---
 
@@ -575,13 +768,14 @@ Every project inherits that title unless the project sets its own. Use the
 project-level one (`chatick_member_role`) only when the answer really is
 different there — "here they also run releases".
 
-**Roles are a different weight, and the difference matters.**
+**Roles are a different weight, and the difference matters.** In 2.0 there is
+one ladder — member, manager, admin — the same in every project of the company.
 
 | What | What it does |
 |---|---|
 | Job title | describes. Wrong one costs a wrong hint |
 | Project role | admin/member inside one project |
-| Company role | **manager and admin see EVERY project of the company** |
+| Company role | **manager and admin act as admins in EVERY project of the company** |
 
 That last row is why a company role is not a title. It grants access to
 projects the person was never added to — including ones nobody meant to show
@@ -641,11 +835,16 @@ as text. Markdown cannot fail that way, because there is nothing to escape. The
 write returns 201 either way, so nothing warns you.
 
 The project is an optional **origin mark**, not a boundary: it says where this
-came up, and it does not hide the entry from anyone else in the company.
+came up, and it does not hide the entry from anyone else in the company. An
+entry that belongs to no project at all — a rule for everyone, a deal with the
+accountant — goes on the company: `chatick_note_save` with `onCompany=true`.
 
 **Access is simple**: you are in the company, so you read and write. You edit
 and delete your own entries; someone else's is for a company admin. There are
-no per-project note permissions — that idea was removed, not forgotten.
+no per-project note permissions — that idea was removed, not forgotten. Prefer
+correcting an entry (`chatick_note_update`) to writing a second one about the
+same thing; delete (`chatick_note_delete`, soft) only when the person asks or
+the entry is plainly wrong and already replaced.
 
 ---
 
@@ -671,16 +870,18 @@ knowledge is looked up**. Ask `/x/search/tasks` when the project is what you
 are trying to remember; ask `/x/notes` when you want the answer itself,
 whoever wrote it and whenever.
 
-### "Why was this returned to me?" — read the task's history
+### "Why is this on me?" — read the handoffs before answering
 
 ```bash
-curl -s "https://api.chatick.com/x/tasks/TASK-24/history?project=$P" \
+curl -s "https://api.chatick.com/x/tasks/TASK-24/handoffs?project=$P" \
   -H "authorization: Bearer $TOKEN"
 ```
 
-Who created the task, who assigned it, who moved its status, and when. The task
-object itself does not say — it carries `createdById` and `createdAt`, but not
-what happened after.
+`chatick_handoffs` is the task's handoff log: who passed it to whom, with which
+note, in which round. That answers "why is this on me" and "how many times was
+it returned" directly. `chatick_task_history` (`/x/tasks/<id>/history`) adds
+the other milestones — who created it, who changed what, and when. The task
+object itself does not say: it carries the current ball, not how it got there.
 
 **Ask before answering, and do not fill the gap with a guess.** This is not
 hypothetical: a person asked exactly this, the history was unreachable, and the
@@ -688,9 +889,9 @@ answer given was "nobody returned it, it was always yours". It was wrong — the
 PM had returned it in a comment. A confident wrong answer costs more than "let
 me check".
 
-Milestones only: reordering in the list and description edits are left out, or
-the real steps drown in them. Older entries name the field that changed but not
-its new value — say what changed, do not invent what it became.
+History lists milestones only: reordering and description edits are left out,
+or the real steps drown in them. Older entries name the field that changed but
+not its new value — say what changed, do not invent what it became.
 
 ---
 
@@ -729,12 +930,12 @@ a second. So over a working day the entry GROWS — append each finished piece t
 it as it lands.
 
 ```bash
-curl -s -X POST https://api.chatick.com/x/worklog   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'   -d '{"body":"<p>Вебхук готов, ретраи падают на 429 — дальше идемпотентный ключ.</p>"}'
+curl -s -X POST https://api.chatick.com/x/worklog   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'   -d '{"body":"Вебхук готов, ретраи падают на 429 — дальше идемпотентный ключ."}'
 ```
 
 It saves as a **draft**: only that person can see it, not even project admins.
 Nothing to be careful about — write the messy state, that is what it is for.
-`POST /x/worklog/<id>/publish` makes it project history, one-way.
+`POST /x/worklog/<id>/publish` makes it project history, one-way — ask first.
 
 ### What to write
 
@@ -796,10 +997,10 @@ curl -s -X POST "https://api.chatick.com/x/resources?project=$P" \
   -d '{"name":"Staging DB","url":"https://...","secrets":[{"label":"Password","value":"..."}],
        "viewers":["<userId>"]}'
 
-# 2. attach it to the task — same request that creates or edits the task
-curl -s -X PATCH "https://api.chatick.com/x/tasks/TASK-81?project=$P" \
+# 2. attach it to the task — adds, never replaces
+curl -s -X POST "https://api.chatick.com/x/tasks/TASK-81/resources?project=$P" \
   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
-  -d '{"resourceIds":["<resourceId>"]}'
+  -d '{"resources":["<resourceId>"]}'
 ```
 
 **A resource you create is shared with nobody but you.** This is the opposite
@@ -893,7 +1094,7 @@ curl -s "https://api.chatick.com/x/resources/<id>/files/<fileId>?project=$P" \
 
 The list gives names and sizes, never contents.
 
-**You can upload it yourself.** With MCP that is one call:
+**You can upload it yourself.** With the local MCP program that is one call:
 
 ```
 chatick_upload(project, path="/abs/path/main.jks", resourceId="<id>")
@@ -902,7 +1103,9 @@ chatick_upload(project, path="/abs/path/main.jks", resourceId="<id>")
 It reads the file, builds the multipart body and supplies the token — there is
 no curl to assemble and no token to fetch. Without `resourceId` the file goes
 to project files instead, where the whole team sees it: right for a build, a
-screenshot or a log, wrong for anything that unlocks something.
+screenshot or a log, wrong for anything that unlocks something. The MCP served
+by address has no `chatick_upload` (it cannot read anyone's disk): there, ask
+the person to attach the file in the app (the resource → Files).
 
 By curl it is the same endpoint:
 
@@ -911,7 +1114,8 @@ curl -X POST "https://api.chatick.com/x/resources/<id>/files?project=$P" \
   -H "authorization: Bearer $TOKEN" -F "file=@./main.jks"
 ```
 
-Do not ask the human to attach it by hand.
+Do not ask the human to attach it by hand when you can do it yourself. A file
+you attached by mistake comes off with `chatick_resource_file_remove`.
 
 That reason is worth stating plainly, because it is the whole point: an
 Android signing key cannot be reissued for an app that is already published.
@@ -921,25 +1125,27 @@ exist somewhere.
 
 ### Fixing a resource instead of duplicating it
 
-`PATCH /x/resources/<id>` changes name, address, description or viewers. Only
-the fields you pass. Reach for it before creating a second resource with the
-correction: a duplicate means the secrets get typed in again by hand, every
-task linked to the old one keeps pointing at it, and somebody has to clean up
-the leftover.
+`PATCH /x/resources/<id>` (`chatick_resource_update`) changes name, address,
+description or viewers. Only the fields you pass. Reach for it before creating a
+second resource with the correction: a duplicate means the secrets get typed in
+again by hand, every task linked to the old one keeps pointing at it, and
+somebody has to clean up the leftover.
 
 Descriptions render as markdown, the same as task descriptions and comments.
+
+---
 
 ## 11. Documents — check what you wrote actually landed
 
 Long-lived project text lives in documents: specs, decisions, notes that
-outgrew a comment.
+outgrew a comment. Content is markdown, like everywhere else.
 
 ```bash
 # create or replace
-curl -s -X PATCH "https://api.chatick.com/x/documents/<id>?project=$P"   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'   -d '{"content":"<p>...</p>"}'
+curl -s -X PATCH "https://api.chatick.com/x/documents/<id>?project=$P"   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'   -d '{"content":"## Heading\n..."}'
 
 # add to the end — safe for long documents
-curl -s -X POST "https://api.chatick.com/x/documents/<id>/append?project=$P"   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'   -d '{"content":"<p>...</p>"}'
+curl -s -X POST "https://api.chatick.com/x/documents/<id>/append?project=$P"   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json'   -d '{"content":"..."}'
 ```
 
 **Every write answers with `totalChars` — the length AFTER it. Compare it with
@@ -951,20 +1157,43 @@ than reporting a failure, because nobody goes looking.
 send a short body by accident and the rest is gone. Versions exist and a human
 can restore, but the mistake is silent until someone opens the page.
 
+Do not know which project a document lives in? `chatick_company_documents`
+(`GET /x/company/documents?q=`) searches every project of the company.
+
+---
+
+## 11.5. Chat — in the mobile app only
+
+In 2.0 the team chat lives in the mobile app; the web app has none. The chat
+itself still exists and the bridge still serves it: `chatick_chat_summaries`
+(what was discussed and decided, by day), `chatick_chat_search` (the messages
+themselves, by word or date), `chatick_chat_post` (posts as the human).
+
+Read it when asked "what did we agree" or "what happened while I was away".
+Post only when the human asks you to: anything about one task belongs in that
+task, where the work is — the chat scrolls away, and nobody working in the web
+app sees it.
+
 ---
 
 ## 12. When a call is refused, read what it actually says
 
-A rejected request usually names its own cause. Two that mislead if you skim:
+A rejected request usually names its own cause. Three that mislead if you skim:
 
 **`Invalid JSON`** means the body never parsed — the field it complains about
 was never there. Look at the reply's `hint`: it shows the fragment around the
 break. A stray backslash is the usual culprit; in JSON a literal `\` must be
-written `\`, and text in Hebrew or Russian hits this often.
+written `\\`, and text in Hebrew or Russian hits this often.
 
 **`Nothing to update`** means every field you sent was ignored, not that the
 task is unchanged. Check the field names against `GET /x/guide` — a typo is
 dropped silently, not guessed.
+
+**A refused handoff** carries `hint` with the way forward: `forbidden` says who
+may make that move, `wrong_move` says which move the task is in (`review` is
+sent from `do`, `return` is used on `review`), `note_required` says what the
+note must contain. A raw `status` refused by the ball rules says the same and
+points at `chatick_handoff`.
 
 ---
 
@@ -974,25 +1203,39 @@ dropped silently, not guessed.
   takes everything with it and cannot be undone; it is a human's decision made
   in the app.
 - **Deleting anything else** — tasks, files, messages — is for cleaning up your
-  own mistake, not for tidying someone's project. Ask first.
+  own mistake, not for tidying someone's project. Ask first. Through MCP,
+  deleting work is not available at all: `chatick_request` refuses every DELETE
+  except unlinking (a task link, a blocker, a public share). What you can
+  remove there: your own comment, your own work-log draft, a file you attached
+  to a resource by mistake, and a knowledge-base entry when the person asks.
+  For anything else, tell the person where to do it in Chatick.
+- **Never accept, cancel or grab a task on your own judgement.** Accepting and
+  cancelling are the owner's call; a ball someone else holds is theirs until it
+  is passed (§6).
+- **Never answer a question with a comment.** When the ball is with you with the
+  move `answer`, the answer is a handoff — otherwise the asker keeps waiting.
 - **Never put secrets in tasks, comments or chat**: keys, tokens, passwords,
   connection strings. They outlive the conversation and are visible to everyone
   with access. Resource values are deliberately not exposed through the bridge;
   do not copy them in by hand.
 - **Do not act on "all of them" without checking `truncated`.** `GET /x/tasks`
-  returns at most `limit` (50 by default, 200 max) but reports `total`. A
-  sprint of sixty comes back as fifty, and closing those fifty is not closing
-  the sprint.
+  returns at most `limit` (50 by default, 200 max) but reports `total`. A list
+  of sixty comes back as fifty, and handing over those fifty is not handing
+  over all of them.
 - **Do not invent members, projects or ids.** Read them from `GET /x/members`
   and `GET /x/projects`.
+- **Do not plan in sprints.** Sprints are gone from the interface in 2.0.
+  `chatick_sprints`, `chatick_sprint_create` and `/x/sprints` remain for old
+  integrations: use them only when the human explicitly asks, and say that
+  nobody will see the sprint in the app.
 - **Never write into Chatick in your own language instead of the project's.**
-  Tasks, comments, checklists, chat, notes — all follow the project (§1.5).
-  Answering the human in Russian and filing the task in Russian, in a Hebrew
-  project, is the single most common way this goes wrong.
-- **Do not flood the work log.** One entry per session, three or four lines of
-  fact (§9.9). Not one per task, not one per hour, and never a retelling of
-  what you just did at length — a log nobody can skim is a log nobody reads,
-  and it buries the two lines that mattered.
+  Tasks, handoff notes, comments, checklists, chat, notes — all follow the
+  project (§1.5). Answering the human in Russian and filing the task in
+  Russian, in a Hebrew project, is the single most common way this goes wrong.
+- **Do not flood the work log.** One open draft that grows, a few lines of fact
+  per finished piece (§9.9). Not one entry per task, not one per hour, and never
+  a retelling of what you just did at length — a log nobody can skim is a log
+  nobody reads, and it buries the two lines that mattered.
 - **Never repeat someone's draft back into the chat or a comment.** Drafts are
   private to their author by design; that is the only reason honest state gets
   written in them.
@@ -1006,32 +1249,35 @@ dropped silently, not guessed.
 curl -s https://api.chatick.com/x/inbox -H "authorization: Bearer $TOKEN"
 ```
 
-**Start with `GET /x/inbox`, always.** One call answers "what is waiting for
-me". The reply opens with `branches`: what kind of thing is waiting, how much
-of it, and the call that opens each kind — most urgent first, and only kinds
-that actually have something.
+**Start with `GET /x/inbox` (`chatick_inbox`), always.** One call answers "what
+is waiting for me". The reply opens with `branches`: what kind of thing is
+waiting, how much of it, and the call that opens each kind — most urgent first,
+and only kinds that actually have something.
 
 ```
-branches: [{ kind: "mentions", count: 3, next: "GET /x/mentions" }, ...]
+branches: [{ kind: "ball", count: 2, next: "GET /x/ball/mine — ..." },
+           { kind: "mentions", count: 3, next: "GET /x/mentions" }, ...]
 ```
 
 Read those counts before going anywhere. A branch that is not listed has
 nothing in it, and four calls coming back empty is exactly the searching this
-replaced. There used to be two entry points saying opposite things about which
-came first — a question left in a comment took three separate calls to find.
+replaced.
 
-`kind: "answers"` means someone replied inside a task's checklist. Those
-replies surface nowhere else: `GET /x/tasks/<id>` carries
-`checklist: {total, done, answered}`, and `answered` above `done` means
-questions were answered while the boxes stayed open. Read them with
-`chatick_checklist` (or `GET /x/tasks/<id>/checklist`) — a checklist item is
-often a question, and the answer lives in its note, not in the comments.
+- `kind: "announcements"` — company announcements, already in full in `items`.
+- `kind: "ball"` — a ball was passed to this person; `/x/ball/mine` shows the
+  note that says what is asked.
+- `kind: "mentions"` — addressed to them personally, including questions
+  waiting for their answer (`kind="question"` in `/x/mentions`; answer with the
+  handoff, §6).
+- `kind: "answers"` — someone replied inside a task's checklist. Those replies
+  surface nowhere else: read them with `chatick_checklist` (§5).
 
 `items` carries the newest in full, each with `whatIsAsked` — one sentence
 written for you saying what the person is actually expected to do.
-
-Both accept `?since=<ISO>` — ask for what is new since a moment you already
-saw, instead of pulling the last thirty and eyeballing them.
+`recentlyRead` is what the person read in the app in the last 30 minutes — not
+work waiting for you, but usually what they are asking about. Both
+`/x/inbox` and `/x/mentions` accept `?since=<ISO>` — ask for what is new since a
+moment you already saw, instead of pulling the last thirty and eyeballing them.
 
 **Clear what you handled, as you handle it.** Reading a notification does not
 mark it read: the person keeps seeing a counter for work that is already done,
@@ -1045,17 +1291,18 @@ curl -s -X POST https://api.chatick.com/x/inbox/read \
   -d '{"entityType":"task","entityId":"<task id>"}'
 ```
 
-One task collects several notifications — assigned, mentioned, commented — and
+One task collects several notifications — passed, mentioned, commented — and
 clearing them one by one means first fetching `/x/mentions` to learn their ids.
 By entity you use the task id you already have, and all of them go at once.
 
 This is the step that gets skipped. Eight tasks were once worked through in full
-— comments written, statuses moved, everything reassigned — and every one of
+— comments written, tasks handed over, everything reassigned — and every one of
 them stayed unread, because nothing in the work itself clears a notification.
 
-When picking up work, `GET /x/tasks?fields=brief` also tells you where a
-conversation is waiting: `unansweredMention: true` means this person was
-mentioned in the comments and has not written since.
+Then, for "what is on me": `chatick_ball` view=`mine` (§9). Inside one project,
+`GET /x/tasks?fields=brief` also tells you where a conversation is waiting:
+`unansweredMention: true` means this person was mentioned in the comments and
+has not written since.
 
 Then, for a piece of work:
 
@@ -1066,26 +1313,30 @@ Then, for a piece of work:
    Where this person stopped last time, in their own words. Skip it and you
    start blind on work that was already half explained.
 1. **Task first** — open the one you were given, or create it (§4).
-2. **Read its comments and look at its files** — the description is what was
-   asked, the comments are what was decided since, and the screenshot is often
-   the actual bug (§9).
-3. **Checklist** — create it if the work has steps (§5).
-4. **Timer** — check whether one is running; offer if not (§8).
-5. **`in_progress`** — before the first edit, not after the last.
-6. **Work**, ticking checklist items as they are genuinely done.
-7. **Extra findings** → their own tasks, with estimates (§0).
+2. **Read its comments, its handoffs and its files** — the description is what
+   was asked, the comments are what was decided since, the last handoff note
+   is why it is here now, and the screenshot is often the actual bug (§9).
+3. **The ball with the person you work for** — move `do`; `take` it from the
+   backlog, ask about anything else (§6). Before the first edit, not after.
+4. **Checklist** — create it if the work has steps (§5).
+5. **Timer** — check whether one is running; offer if not (§8).
+6. **Work**, ticking checklist items as they are genuinely done. Stuck on a
+   question? `ask` — do not wait silently.
+7. **Extra findings** → their own tasks, with holders and estimates (§0).
 8. **Access the work needs** → a resource, linked to the task, shared with the
    people who need it (§10).
 9. **Closing comment** — what you did, what you verified with, what is open,
    and who you granted access to. In the project's language (§1.5), even when
    the conversation with you is in another.
-10. **`done` or `review`** — and never without that comment.
+10. **Hand it over** — `review` with a note saying what to check. Never
+    `accept` your own work, and never without that comment.
 11. **Work log** — `POST /x/worklog`, or `PATCH` if a draft is open (§9.9).
     Not once at the end: **after every finished piece**, as it lands. What
     changed, and any decision made along the way with its reason. Facts and
     movement, no water. This is the step that makes the next session start
     informed instead of blind, and the one easiest to skip — the work feels
     finished without it, and by then the reasoning is already gone.
+12. **Clear the inbox** for the tasks you handled.
 
 When you are done for good: `POST /x/disconnect` closes the tunnel.
 
@@ -1103,7 +1354,8 @@ curl -s "https://api.chatick.com/x/releases?project=$P" -H "authorization: Beare
 
 The reply carries **`live`** — what actually reached people, per build type.
 That is the answer to "which version is in production"; do not compute it
-yourself from the list.
+yourself from the list. Across the whole company in one call:
+`chatick_company_releases` (`GET /x/company/releases`).
 
 It also carries **`buildTypes`**, every stage ladder. Read it instead of
 guessing a stage name — the ladders differ on purpose:
@@ -1129,10 +1381,10 @@ curl -s -X POST "https://api.chatick.com/x/releases/request?project=$P"   -H "au
        "comment":"Production build for the store","buildProfile":"production"}'
 ```
 
-One call creates the **task** (with the assignee, who gets notified), the
-**version**, and the link between them. Doing it as three separate calls risks
-breaking in the middle and leaving a task with no version — a half-state
-somebody then has to clean up by hand.
+One call creates the **task** (with the ball in the assignee's hands — they get
+notified), the **version**, and the link between them. Doing it as three
+separate calls risks breaking in the middle and leaving a task with no version
+— a half-state somebody then has to clean up by hand.
 
 `POST /x/releases` without `/request` is for the other case: registering
 something **already built**, when there is nobody to ask.
@@ -1174,9 +1426,9 @@ curl -s -X POST "https://api.chatick.com/x/releases/<id>/stage?project=$P" \
 "Why has 1.4 been in review for a week" has no answer if every transition
 silently overwrites the last. Write what happened, not "moved".
 
-Moving a stage notifies the person who **created** the version and whoever is
-assigned to the linked tasks — not the whole project, and never the person who
-made the change.
+Moving a stage notifies the person who **created** the version and whoever
+holds the linked tasks — not the whole project, and never the person who made
+the change.
 
 **There is no delete.** A version is a fact — it was built and it went
 somewhere. Erasing it erases the answer to "what was in production that
@@ -1197,9 +1449,9 @@ curl -s -X PATCH "https://api.chatick.com/x/tasks/TASK-81?project=$P" \
   -d '{"releaseIds":["<releaseId>"]}'
 ```
 
-"Ship 1.4 to Google Play" is work — it has an assignee and a deadline. A
-version has neither; it just exists and moves. So the task points at the
-version, not the other way round.
+"Ship 1.4 to Google Play" is work — it has a holder and a deadline. A version
+has neither; it just exists and moves. So the task points at the version, not
+the other way round.
 
 It shows in both directions: `GET /x/tasks/TASK-81` returns `releases` with
 each version's **current stage**, so "what is this task shipping in" needs no
